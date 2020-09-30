@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Models for scheduled execution of jobs"""
+
 import enum
-from typing import Optional, Type
 
 from flask_appbuilder import Model
 from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.orm import relationship, RelationshipProperty
+from sqlalchemy.orm import relationship
 
 from superset import security_manager
 from superset.models.helpers import AuditMixinNullable, ImportMixin
@@ -29,17 +29,17 @@ from superset.models.helpers import AuditMixinNullable, ImportMixin
 metadata = Model.metadata  # pylint: disable=no-member
 
 
-class ScheduleType(str, enum.Enum):
+class ScheduleType(enum.Enum):
     slice = "slice"
     dashboard = "dashboard"
+    s3 = "s3"
 
-
-class EmailDeliveryType(str, enum.Enum):
+class EmailDeliveryType(enum.Enum):
     attachment = "Attachment"
     inline = "Inline"
 
 
-class SliceEmailReportFormat(str, enum.Enum):
+class SliceEmailReportFormat(enum.Enum):
     visualization = "Visualization"
     data = "Raw data"
 
@@ -50,16 +50,16 @@ class EmailSchedule:
 
     __tablename__ = "email_schedules"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True)  # pylint: disable=invalid-name
     active = Column(Boolean, default=True, index=True)
     crontab = Column(String(50))
 
     @declared_attr
-    def user_id(self) -> int:
+    def user_id(self):
         return Column(Integer, ForeignKey("ab_user.id"))
 
     @declared_attr
-    def user(self) -> RelationshipProperty:
+    def user(self):
         return relationship(
             security_manager.user_model,
             backref=self.__tablename__,
@@ -67,10 +67,10 @@ class EmailSchedule:
         )
 
     recipients = Column(Text)
-    slack_channel = Column(Text)
     deliver_as_group = Column(Boolean, default=False)
     delivery_type = Column(Enum(EmailDeliveryType))
-
+    email_subject = Column(String(128))
+    email_body = Column(Text)
 
 class DashboardEmailSchedule(Model, AuditMixinNullable, ImportMixin, EmailSchedule):
     __tablename__ = "dashboard_email_schedules"
@@ -87,9 +87,33 @@ class SliceEmailSchedule(Model, AuditMixinNullable, ImportMixin, EmailSchedule):
     email_format = Column(Enum(SliceEmailReportFormat))
 
 
-def get_scheduler_model(report_type: ScheduleType) -> Optional[Type[EmailSchedule]]:
-    if report_type == ScheduleType.dashboard:
+def get_scheduler_model(report_type):
+    if report_type == ScheduleType.dashboard.value:
         return DashboardEmailSchedule
-    if report_type == ScheduleType.slice:
+    elif report_type == ScheduleType.slice.value:
         return SliceEmailSchedule
+    elif report_type == ScheduleType.s3.value:
+        return S3ExportSchedule
     return None
+
+class S3ExportSchedule(Model, AuditMixinNullable, ImportMixin):
+    __tablename__ = "s3_export_schedules"
+    id = Column(Integer, primary_key=True)  # pylint: disable=invalid-name
+    active = Column(Boolean, default=True, index=True)
+    crontab = Column(String(50))
+
+    @declared_attr
+    def user_id(self):
+        return Column(Integer, ForeignKey("ab_user.id"))
+
+    @declared_attr
+    def user(self):
+        return relationship(
+            security_manager.user_model,
+            backref=self.__tablename__,
+            foreign_keys=[self.user_id],
+        )
+
+    slice_id = Column(Integer, ForeignKey("slices.id"))
+    slice = relationship("Slice", backref="s3_schedules", foreign_keys=[slice_id])
+    s3_path = Column(String(50))

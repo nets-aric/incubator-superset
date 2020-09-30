@@ -1,0 +1,31 @@
+{% extends "template.html" %}
+{% block title %}
+
+<title>Serverside Table</title>
+
+{% endblock %}
+{% block body %}
+
+<script type="text/javascript" src="/static/js/serverside_table.js"></script>
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/1.5.1/css/buttons.dataTables.min.css">
+<br>
+<body>
+<div class="table_container">
+<tbody>
+<tr>
+            <td>Limit:</td>
+            <td><input type="text" id="limit" name="limit" style='font-family:"Arial", Courier, monospace; font-size:80%'></td>
+        </tr>
+<br>
+  <table class="display" width="50%" align="left" style='font-family:"Arial", Courier, monospace; font-size:80%'  id="serverside_table">
+	<thead>
+		<tr>
+		</tr>
+                <tr>
+                </tr>
+	</thead>
+  </table>
+</div>
+</body>
+
+{% endblock %}

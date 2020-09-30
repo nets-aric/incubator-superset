@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<meta name="viewport" content = "width=device-width, initial-scale=1.0"></meta>
+<head>
+    {% block title %}{% endblock %}
+
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.21/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.3/css/bootstrap.css">
+    <link rel="stylesheet" type="text/css" href="/home/ec2-user/dtables/venv_flask/datatables-flask-serverside_rep/app/template/css/jquery.css"></link>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"></link>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.21/css/dataTables.jqueryui.min.css"></link>
+</head>
+
+<body class="body">
+
+  <script type="text/javascript" src="//code.jquery.com/jquery-1.12.4.js"></script>
+  <script type="text/javascript" src="//cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
+	 <body>
+
+     <div class="container-fluid" style="min-height:100%">
+
+       {% block body %}{% endblock %}
+
+     </div>
+
+	 </body>
+</html>

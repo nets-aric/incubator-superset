@@ -45,6 +45,9 @@ from superset.security import SupersetSecurityManager
 from superset.typing import FlaskResponse
 from superset.utils.core import pessimistic_connection_handling
 from superset.utils.log import DBEventLogger, get_event_logger_from_cfg_value
+from superset.dtable.mod_tables.models import TableBuilder
+from superset.dtable.mod_tables.controllers import tables
+
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +62,7 @@ def create_app() -> Flask:
 
         app_initializer = app.config.get("APP_INITIALIZER", SupersetAppInitializer)(app)
         app_initializer.init_app()
-
+        app.register_blueprint(tables)
         return app
 
     # Make sure that bootstrap errors ALWAYS get logged
@@ -144,7 +147,7 @@ class SupersetAppInitializer:
             AnnotationModelView,
         )
         from superset.views.api import Api
-        from superset.views.core import Superset
+        from superset.views.core import Superset, DataTableView
         from superset.views.redirects import R
         from superset.views.key_value import KV
         from superset.views.access_requests import AccessRequestsModelView
@@ -166,6 +169,7 @@ class SupersetAppInitializer:
         from superset.views.schedules import (
             DashboardEmailScheduleView,
             SliceEmailScheduleView,
+            S3ScheduleView,
         )
         from superset.views.sql_lab import (
             QueryView,
@@ -241,6 +245,7 @@ class SupersetAppInitializer:
             category_label=__("Manage"),
             category_icon="",
         )
+
         appbuilder.add_view(
             QueryView,
             "Queries",
@@ -266,9 +271,9 @@ class SupersetAppInitializer:
         appbuilder.add_view_no_menu(CssTemplateAsyncModelView)
         appbuilder.add_view_no_menu(CsvToDatabaseView)
         appbuilder.add_view_no_menu(Dashboard)
+        appbuilder.add_view_no_menu(DataTableView())
         appbuilder.add_view_no_menu(DashboardModelViewAsync)
         appbuilder.add_view_no_menu(Datasource)
-
         if feature_flag_manager.is_feature_enabled("KV_STORE"):
             appbuilder.add_view_no_menu(KV)
 
@@ -365,6 +370,14 @@ class SupersetAppInitializer:
                 SliceEmailScheduleView,
                 "Chart Emails",
                 label=__("Chart Email Schedules"),
+                category="Manage",
+                category_label=__("Manage"),
+                icon="fa-search",
+            )
+            appbuilder.add_view(
+                S3ScheduleView,
+                "S3 Schedule",
+                label=__("S3 Export Schedules"),
                 category="Manage",
                 category_label=__("Manage"),
                 icon="fa-search",

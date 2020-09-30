@@ -16,19 +16,19 @@
 # under the License.
 
 """Utility functions used across Superset"""
-
+import re
+import boto3
+import time
 import logging
 import time
 import urllib.request
 from collections import namedtuple
 from datetime import datetime, timedelta
 from email.utils import make_msgid, parseaddr
-from typing import Any, Dict, Iterator, List, Optional, Tuple, TYPE_CHECKING, Union
 from urllib.error import URLError  # pylint: disable=ungrouped-imports
 
 import croniter
 import simplejson as json
-from celery.app.task import Task
 from dateutil.tz import tzlocal
 from flask import render_template, Response, session, url_for
 from flask_babel import gettext as __
@@ -41,104 +41,67 @@ from werkzeug.http import parse_cookie
 # Superset framework imports
 from superset import app, db, security_manager
 from superset.extensions import celery_app
-from superset.models.dashboard import Dashboard
 from superset.models.schedules import (
     EmailDeliveryType,
     get_scheduler_model,
     ScheduleType,
     SliceEmailReportFormat,
+    S3ExportSchedule,
 )
-from superset.models.slice import Slice
-from superset.tasks.slack_util import deliver_slack_msg
 from superset.utils.core import get_email_address_list, send_email_smtp
-
-if TYPE_CHECKING:
-    # pylint: disable=unused-import
-    from werkzeug.datastructures import TypeConversionDict
-
 
 # Globals
 config = app.config
 logger = logging.getLogger("tasks.email_reports")
 logger.setLevel(logging.INFO)
 
-EMAIL_PAGE_RENDER_WAIT = config["EMAIL_PAGE_RENDER_WAIT"]
-WEBDRIVER_BASEURL = config["WEBDRIVER_BASEURL"]
-WEBDRIVER_BASEURL_USER_FRIENDLY = config["WEBDRIVER_BASEURL_USER_FRIENDLY"]
-
-ReportContent = namedtuple(
-    "EmailContent",
-    [
-        "body",  # email body
-        "data",  # attachments
-        "images",  # embedded images for the email
-        "slack_message",  # html not supported, only markdown
-        # attachments for the slack message, embedding not supported
-        "slack_attachment",
-    ],
-)
+# Time in seconds, we will wait for the page to load and render
+PAGE_RENDER_WAIT = 30
 
 
-def _get_email_to_and_bcc(
-    recipients: str, deliver_as_group: bool
-) -> Iterator[Tuple[str, str]]:
+EmailContent = namedtuple("EmailContent", ["body", "data", "images"])
+
+
+def _get_recipients(schedule):
     bcc = config["EMAIL_REPORT_BCC_ADDRESS"]
 
-    if deliver_as_group:
-        to = recipients
+    if schedule.deliver_as_group:
+        to = schedule.recipients
         yield (to, bcc)
     else:
-        for to in get_email_address_list(recipients):
+        for to in get_email_address_list(schedule.recipients):
             yield (to, bcc)
 
 
-# TODO(bkyryliuk): move email functionality into a separate module.
-def _deliver_email(  # pylint: disable=too-many-arguments
-    recipients: str,
-    deliver_as_group: bool,
-    subject: str,
-    body: str,
-    data: Optional[Dict[str, Any]],
-    images: Optional[Dict[str, str]],
-) -> None:
-    for (to, bcc) in _get_email_to_and_bcc(recipients, deliver_as_group):
+def _deliver_email(schedule, subject, email):
+    for (to, bcc) in _get_recipients(schedule):
         send_email_smtp(
             to,
-            subject,
-            body,
+            schedule.email_subject,
+            schedule.email_body,
             config,
-            data=data,
-            images=images,
+            data=email.data,
+            images=email.images,
             bcc=bcc,
             mime_subtype="related",
             dryrun=config["SCHEDULED_EMAIL_DEBUG_MODE"],
         )
 
+def _export_s3(schedule, email):
+    print("///////////Exporting to s3///////////////")
+    s3 = boto3.resource('s3')
+    timestr = time.strftime("%Y%m%d%H%M%S")
+    file_path = "s3_export/" + timestr + "_" + schedule.slice.slice_name.replace(" ", "_") + ".csv"
+    object = s3.Object(schedule.s3_path, file_path)
+    object.put(Body=email)
 
-def _generate_report_content(
-    delivery_type: EmailDeliveryType, screenshot: bytes, name: str, url: str
-) -> ReportContent:
-    data: Optional[Dict[str, Any]]
-
-    # how to: https://api.slack.com/reference/surfaces/formatting
-    slack_message = __(
-        """
-        *%(name)s*\n
-        <%(url)s|Explore in Superset>
-        """,
-        name=name,
-        url=url,
-    )
-
-    if delivery_type == EmailDeliveryType.attachment:
+def _generate_mail_content(schedule, screenshot, name, url):
+    if schedule.delivery_type == EmailDeliveryType.attachment:
         images = None
+        e_body = '<pre>' + schedule.email_body + '</pre><p></p>'
         data = {"screenshot.png": screenshot}
-        body = __(
-            '<b><a href="%(url)s">Explore in Superset</a></b><p></p>',
-            name=name,
-            url=url,
-        )
-    elif delivery_type == EmailDeliveryType.inline:
+        body = __( e_body )
+    elif schedule.delivery_type == EmailDeliveryType.inline:
         # Get the domain from the 'From' address ..
         # and make a message id without the < > in the ends
         domain = parseaddr(config["SMTP_MAIL_FROM"])[1].split("@")[1]
@@ -146,20 +109,13 @@ def _generate_report_content(
 
         images = {msgid: screenshot}
         data = None
-        body = __(
-            """
-            <b><a href="%(url)s">Explore in Superset</a></b><p></p>
-            <img src="cid:%(msgid)s">
-            """,
-            name=name,
-            url=url,
-            msgid=msgid,
-        )
+        e_body = '<pre>'+ schedule.email_body + """</pre><p></p><img src="cid:%(msgid)s">"""
+        body = __( e_body )
 
-    return ReportContent(body, data, images, slack_message, screenshot)
+    return EmailContent(body, data, images)
 
 
-def _get_auth_cookies() -> List["TypeConversionDict[Any, Any]"]:
+def _get_auth_cookies():
     # Login with the user specified to get the reports
     with app.test_request_context():
         user = security_manager.find_user(config["EMAIL_REPORTS_USER"])
@@ -180,17 +136,14 @@ def _get_auth_cookies() -> List["TypeConversionDict[Any, Any]"]:
     return cookies
 
 
-def _get_url_path(view: str, user_friendly: bool = False, **kwargs: Any) -> str:
+def _get_url_path(view, **kwargs):
     with app.test_request_context():
-        base_url = (
-            WEBDRIVER_BASEURL_USER_FRIENDLY if user_friendly else WEBDRIVER_BASEURL
+        return urllib.parse.urljoin(
+            str(config["WEBDRIVER_BASEURL"]), url_for(view, **kwargs)
         )
-        return urllib.parse.urljoin(str(base_url), url_for(view, **kwargs))
 
 
-def create_webdriver() -> Union[
-    chrome.webdriver.WebDriver, firefox.webdriver.WebDriver
-]:
+def create_webdriver():
     # Create a webdriver for use in fetching reports
     if config["EMAIL_REPORTS_WEBDRIVER"] == "firefox":
         driver_class = firefox.webdriver.WebDriver
@@ -228,9 +181,7 @@ def create_webdriver() -> Union[
     return driver
 
 
-def destroy_webdriver(
-    driver: Union[chrome.webdriver.WebDriver, firefox.webdriver.WebDriver]
-) -> None:
+def destroy_webdriver(driver):
     """
     Destroy a driver
     """
@@ -247,38 +198,26 @@ def destroy_webdriver(
         pass
 
 
-def deliver_dashboard(
-    dashboard_id: int,
-    recipients: Optional[str],
-    slack_channel: Optional[str],
-    delivery_type: EmailDeliveryType,
-    deliver_as_group: bool,
-) -> None:
-
+def deliver_dashboard(schedule):
     """
     Given a schedule, delivery the dashboard as an email report
     """
-    dashboard = db.session.query(Dashboard).filter_by(id=dashboard_id).one()
+    dashboard = schedule.dashboard
 
-    dashboard_url = _get_url_path(
-        "Superset.dashboard", dashboard_id_or_slug=dashboard.id
-    )
-    dashboard_url_user_friendly = _get_url_path(
-        "Superset.dashboard", user_friendly=True, dashboard_id_or_slug=dashboard.id
-    )
+    dashboard_url = _get_url_path("Superset.dashboard", dashboard_id=dashboard.id)
 
     # Create a driver, fetch the page, wait for the page to render
     driver = create_webdriver()
     window = config["WEBDRIVER_WINDOW"]["dashboard"]
     driver.set_window_size(*window)
     driver.get(dashboard_url)
-    time.sleep(EMAIL_PAGE_RENDER_WAIT)
+    time.sleep(PAGE_RENDER_WAIT)
 
     # Set up a function to retry once for the element.
     # This is buggy in certain selenium versions with firefox driver
     get_element = getattr(driver, "find_element_by_class_name")
     element = retry_call(
-        get_element, fargs=["grid-container"], tries=2, delay=EMAIL_PAGE_RENDER_WAIT
+        get_element, fargs=["grid-container"], tries=2, delay=PAGE_RENDER_WAIT
     )
 
     try:
@@ -291,46 +230,24 @@ def deliver_dashboard(
         destroy_webdriver(driver)
 
     # Generate the email body and attachments
-    report_content = _generate_report_content(
-        delivery_type,
-        screenshot,
-        dashboard.dashboard_title,
-        dashboard_url_user_friendly,
+    email = _generate_mail_content(
+        schedule, screenshot, dashboard.dashboard_title, dashboard_url
     )
 
-    subject = __(
-        "%(prefix)s %(title)s",
-        prefix=config["EMAIL_REPORTS_SUBJECT_PREFIX"],
-        title=dashboard.dashboard_title,
-    )
+    subject = __( schedule.email_body )
 
-    if recipients:
-        _deliver_email(
-            recipients,
-            deliver_as_group,
-            subject,
-            report_content.body,
-            report_content.data,
-            report_content.images,
-        )
-    if slack_channel:
-        deliver_slack_msg(
-            slack_channel,
-            subject,
-            report_content.slack_message,
-            report_content.slack_attachment,
-        )
+    _deliver_email(schedule, subject, email)
 
 
-def _get_slice_data(slc: Slice, delivery_type: EmailDeliveryType) -> ReportContent:
+def _get_slice_data(schedule, report_type=None):
+    slc = schedule.slice
+
     slice_url = _get_url_path(
         "Superset.explore_json", csv="true", form_data=json.dumps({"slice_id": slc.id})
     )
 
     # URL to include in the email
-    slice_url_user_friendly = _get_url_path(
-        "Superset.slice", slice_id=slc.id, user_friendly=True
-    )
+    url = _get_url_path("Superset.slice", slice_id=slc.id)
 
     cookies = {}
     for cookie in _get_auth_cookies():
@@ -344,58 +261,48 @@ def _get_slice_data(slc: Slice, delivery_type: EmailDeliveryType) -> ReportConte
 
     # TODO: Move to the csv module
     content = response.read()
+    print("//////////////Creating CSV//////////////////")
+    if report_type == ScheduleType.s3.value:
+        # data = {__("%(name)s.csv", name=slc.slice_name): content}
+        data = content
+        e_body = '<pre> N/A </pre><p></p>'
+        body = __( e_body )
+        return data
     rows = [r.split(b",") for r in content.splitlines()]
-
-    if delivery_type == EmailDeliveryType.inline:
+    if schedule.delivery_type == EmailDeliveryType.inline:
         data = None
 
         # Parse the csv file and generate HTML
         columns = rows.pop(0)
-        with app.app_context():  # type: ignore
+        with app.app_context():
             body = render_template(
                 "superset/reports/slice_data.html",
                 columns=columns,
                 rows=rows,
                 name=slc.slice_name,
-                link=slice_url_user_friendly,
+                link=url,
             )
 
-    elif delivery_type == EmailDeliveryType.attachment:
+    elif schedule.delivery_type == EmailDeliveryType.attachment:
         data = {__("%(name)s.csv", name=slc.slice_name): content}
-        body = __(
-            '<b><a href="%(url)s">Explore in Superset</a></b><p></p>',
-            name=slc.slice_name,
-            url=slice_url_user_friendly,
-        )
+        e_body = '<pre>' + str(schedule.email_body) + '</pre><p></p>'
+        body = __( e_body )
 
-    # how to: https://api.slack.com/reference/surfaces/formatting
-    slack_message = __(
-        """
-        *%(slice_name)s*\n
-        <%(slice_url_user_friendly)s|Explore in Superset>
-        """,
-        slice_name=slc.slice_name,
-        slice_url_user_friendly=slice_url_user_friendly,
-    )
-
-    return ReportContent(body, data, None, slack_message, content)
+    return EmailContent(body, data, None)
 
 
-def _get_slice_visualization(
-    slc: Slice, delivery_type: EmailDeliveryType
-) -> ReportContent:
+def _get_slice_visualization(schedule):
+    slc = schedule.slice
+
     # Create a driver, fetch the page, wait for the page to render
     driver = create_webdriver()
     window = config["WEBDRIVER_WINDOW"]["slice"]
     driver.set_window_size(*window)
 
     slice_url = _get_url_path("Superset.slice", slice_id=slc.id)
-    slice_url_user_friendly = _get_url_path(
-        "Superset.slice", slice_id=slc.id, user_friendly=True
-    )
 
     driver.get(slice_url)
-    time.sleep(EMAIL_PAGE_RENDER_WAIT)
+    time.sleep(PAGE_RENDER_WAIT)
 
     # Set up a function to retry once for the element.
     # This is buggy in certain selenium versions with firefox driver
@@ -403,7 +310,7 @@ def _get_slice_visualization(
         driver.find_element_by_class_name,
         fargs=["chart-container"],
         tries=2,
-        delay=EMAIL_PAGE_RENDER_WAIT,
+        delay=PAGE_RENDER_WAIT,
     )
 
     try:
@@ -416,53 +323,29 @@ def _get_slice_visualization(
         destroy_webdriver(driver)
 
     # Generate the email body and attachments
-    return _generate_report_content(
-        delivery_type, screenshot, slc.slice_name, slice_url_user_friendly
-    )
+    return _generate_mail_content(schedule, screenshot, slc.slice_name, slice_url)
 
 
-def deliver_slice(  # pylint: disable=too-many-arguments
-    slice_id: int,
-    recipients: Optional[str],
-    slack_channel: Optional[str],
-    delivery_type: EmailDeliveryType,
-    email_format: SliceEmailReportFormat,
-    deliver_as_group: bool,
-) -> None:
+def deliver_slice(schedule, report_type=None):
     """
     Given a schedule, delivery the slice as an email report
     """
-    slc = db.session.query(Slice).filter_by(id=slice_id).one()
-
-    if email_format == SliceEmailReportFormat.data:
-        report_content = _get_slice_data(slc, delivery_type)
-    elif email_format == SliceEmailReportFormat.visualization:
-        report_content = _get_slice_visualization(slc, delivery_type)
+    if report_type == ScheduleType.s3.value:
+        email = _get_slice_data(schedule, report_type)
+    elif schedule.email_format == SliceEmailReportFormat.data:
+        email = _get_slice_data(schedule)
+    elif schedule.email_format == SliceEmailReportFormat.visualization:
+        email = _get_slice_visualization(schedule)
     else:
         raise RuntimeError("Unknown email report format")
 
-    subject = __(
-        "%(prefix)s %(title)s",
-        prefix=config["EMAIL_REPORTS_SUBJECT_PREFIX"],
-        title=slc.slice_name,
-    )
 
-    if recipients:
-        _deliver_email(
-            recipients,
-            deliver_as_group,
-            subject,
-            report_content.body,
-            report_content.data,
-            report_content.images,
-        )
-    if slack_channel:
-        deliver_slack_msg(
-            slack_channel,
-            subject,
-            report_content.slack_message,
-            report_content.slack_attachment,
-        )
+    if report_type == ScheduleType.s3.value:
+        print("Executing _export_s3")
+        _export_s3(schedule, email )
+    else:
+        subject = __(schedule.email_body)
+        _deliver_email(schedule, subject, email)
 
 
 @celery_app.task(
@@ -470,51 +353,33 @@ def deliver_slice(  # pylint: disable=too-many-arguments
     bind=True,
     soft_time_limit=config["EMAIL_ASYNC_TIME_LIMIT_SEC"],
 )
-def schedule_email_report(  # pylint: disable=unused-argument
-    task: Task,
-    report_type: ScheduleType,
-    schedule_id: int,
-    recipients: Optional[str] = None,
-    slack_channel: Optional[str] = None,
-) -> None:
+def schedule_email_report(
+    task, report_type, schedule_id, recipients=None
+):  # pylint: disable=unused-argument
     model_cls = get_scheduler_model(report_type)
     schedule = db.create_scoped_session().query(model_cls).get(schedule_id)
-
+    print("Check 3")
     # The user may have disabled the schedule. If so, ignore this
     if not schedule or not schedule.active:
         logger.info("Ignoring deactivated schedule")
         return
 
-    recipients = recipients or schedule.recipients
-    slack_channel = slack_channel or schedule.slack_channel
-    logger.info(
-        "Starting report for slack: %s and recipients: %s.", slack_channel, recipients
-    )
+    # TODO: Detach the schedule object from the db session
+    if recipients is not None:
+        schedule.id = schedule_id
+        schedule.recipients = recipients
 
-    if report_type == ScheduleType.dashboard:
-        deliver_dashboard(
-            schedule.dashboard_id,
-            recipients,
-            slack_channel,
-            schedule.delivery_type,
-            schedule.deliver_as_group,
-        )
-    elif report_type == ScheduleType.slice:
-        deliver_slice(
-            schedule.slice_id,
-            recipients,
-            slack_channel,
-            schedule.delivery_type,
-            schedule.email_format,
-            schedule.deliver_as_group,
-        )
+    if report_type == ScheduleType.dashboard.value:
+        deliver_dashboard(schedule)
+    elif report_type == ScheduleType.slice.value:
+        deliver_slice(schedule)
+    elif report_type == ScheduleType.s3.value:
+        deliver_slice(schedule, report_type)
     else:
         raise RuntimeError("Unknown report type")
 
 
-def next_schedules(
-    crontab: str, start_at: datetime, stop_at: datetime, resolution: int = 0
-) -> Iterator[datetime]:
+def next_schedules(crontab, start_at, stop_at, resolution=0):
     crons = croniter.croniter(crontab, start_at - timedelta(seconds=1))
     previous = start_at - timedelta(days=1)
 
@@ -534,36 +399,29 @@ def next_schedules(
         previous = eta
 
 
-def schedule_window(
-    report_type: ScheduleType, start_at: datetime, stop_at: datetime, resolution: int
-) -> None:
+def schedule_window(report_type, start_at, stop_at, resolution):
     """
     Find all active schedules and schedule celery tasks for
     each of them with a specific ETA (determined by parsing
     the cron schedule for the schedule)
     """
     model_cls = get_scheduler_model(report_type)
-
-    if not model_cls:
-        return None
-
     dbsession = db.create_scoped_session()
     schedules = dbsession.query(model_cls).filter(model_cls.active.is_(True))
-
+    print("Check 1")
     for schedule in schedules:
         args = (report_type, schedule.id)
-
+        print("Check Schedule")
         # Schedule the job for the specified time window
         for eta in next_schedules(
             schedule.crontab, start_at, stop_at, resolution=resolution
         ):
+            print("Checl 2")
             schedule_email_report.apply_async(args, eta=eta)
-
-    return None
 
 
 @celery_app.task(name="email_reports.schedule_hourly")
-def schedule_hourly() -> None:
+def schedule_hourly():
     """ Celery beat job meant to be invoked hourly """
 
     if not config["ENABLE_SCHEDULED_EMAIL_REPORTS"]:
@@ -575,5 +433,6 @@ def schedule_hourly() -> None:
     # Get the top of the hour
     start_at = datetime.now(tzlocal()).replace(microsecond=0, second=0, minute=0)
     stop_at = start_at + timedelta(seconds=3600)
-    schedule_window(ScheduleType.dashboard, start_at, stop_at, resolution)
-    schedule_window(ScheduleType.slice, start_at, stop_at, resolution)
+    schedule_window(ScheduleType.dashboard.value, start_at, stop_at, resolution)
+    schedule_window(ScheduleType.slice.value, start_at, stop_at, resolution)
+    schedule_window(ScheduleType.s3.value, start_at, stop_at, resolution)

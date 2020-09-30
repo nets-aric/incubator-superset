@@ -1,0 +1,32 @@
+{% extends "superset/base.html" %}
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.21/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.21/css/dataTables.jqueryui.min.css"></link>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.3/css/bootstrap.css">
+{% block content %}
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.21/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.21/css/dataTables.jqueryui.min.css"></link>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"></link>
+    <script type="text/javascript" src="//code.jquery.com/jquery-1.12.4.js"></script>
+    <script type="text/javascript" src="//cdn.datatables.net/1.10.21/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="/static/js/serverside_table.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/buttons/1.5.1/css/buttons.dataTables.min.css">
+
+<div class="table_container" style="width:1145px;overflow:auto;">
+<tbody>
+<tr>
+            <td>Limit: </td>
+            <td><input type="text" id="limit" name="limit" style='font-family:"Arial", Courier, monospace; font-size:80%'></td>
+        </tr>
+<br>
+<br>
+<textarea readonly rows="10" name="sql_field" id="id_sql_field" style="display:none;"  >{{ query }}</textarea>
+<table class="display" width="100%" align="left" style='font-family:"Arial", Courier, monospace; font-size:80%'  id="serverside_table">
+	<thead>
+		<tr>
+		</tr>
+                <tr>
+                </tr>
+	</thead>
+  </table>
+</div>
+{% endblock %}

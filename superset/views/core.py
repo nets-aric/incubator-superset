@@ -29,7 +29,7 @@ import simplejson as json
 from flask import abort, flash, g, Markup, redirect, render_template, request, Response
 from flask_appbuilder import expose
 from flask_appbuilder.models.sqla.interface import SQLAInterface
-from flask_appbuilder.security.decorators import has_access, has_access_api
+from flask_appbuilder.security.decorators import has_access, has_access_api, permission_name
 from flask_appbuilder.security.sqla import models as ab_models
 from flask_babel import gettext as __, lazy_gettext as _
 from sqlalchemy import and_, or_, select
@@ -105,6 +105,7 @@ from superset.views.base import (
     json_errors_response,
     json_success,
     validate_sqlatable,
+    SupersetModelView,
 )
 from superset.views.database.filters import DatabaseFilter
 from superset.views.utils import (
@@ -149,11 +150,78 @@ DATABASE_KEYS = [
 DATASOURCE_MISSING_ERR = __("The data source seems to have been deleted")
 USER_MISSING_ERR = __("The user seems to have been deleted")
 
+class DataTableView(BaseSupersetView):
+
+    @has_access
+    @expose('/datatable/<int:slice_id>/', methods=["GET", "POST"])
+    def dt(self,slice_id):
+        datasource_id = request.args.get("datasource_id")
+        datasource_type = request.args.get("datasource_type")
+        slice_id_arg = request.args.get("slice_id")
+        print(str(slice_id_arg))
+        print(datasource_type)
+        print(str(datasource_id))
+
+        response_type = utils.ChartDataResultType.QUERY
+
+        responses: List[
+            Union[utils.ChartDataResultFormat, utils.ChartDataResultType]
+        ] = list(utils.ChartDataResultFormat)
+        responses.extend(list(utils.ChartDataResultType))
+        for response_option in responses:
+            if request.args.get(response_option) == "true":
+                response_type = response_option
+                break
+
+        form_data = get_form_data()[0]
+
+        try:
+            datasource_id, datasource_type = get_datasource_info(
+                datasource_id, datasource_type, form_data
+            )
+            viz_obj = get_viz(
+                datasource_type=cast(str, datasource_type),
+                datasource_id=datasource_id,
+                form_data=form_data,
+                force=request.args.get("force") == "true",
+            )
+            query = self.generate_json(viz_obj, response_type)
+            print(str(query) + "This has been printed")
+        except SupersetException as ex:
+            return json_error_response(utils.error_msg_from_exception(ex))
+
+
+        return self.render_template("superset/add_dtable.html", slice_id=slice_id, query=str(query))
+
+    def generate_json(
+        self, viz_obj: BaseViz, response_type: Optional[str] = None
+    ) -> FlaskResponse:
+        return self.get_query_string_response(viz_obj)
+
+    def get_query_string_response(self, viz_obj: BaseViz) -> FlaskResponse:
+        query = None
+        try:
+            query_obj = viz_obj.query_obj()
+            if query_obj:
+                query = viz_obj.datasource.get_query_str(query_obj)
+                return query
+        except Exception as ex:  # pylint: disable=broad-except
+            err_msg = utils.error_msg_from_exception(ex)
+            logger.exception(err_msg)
+            return json_error_response(err_msg)
+
 
 class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
     """The base views for Superset!"""
 
     logger = logging.getLogger(__name__)
+
+#    @has_access
+#    @permission_name('dtable_access')
+    @expose('/dtable/<int:slice_id>/', methods=["GET", "POST"])
+    def dt(self,slice_id):
+        return self.render_template("superset/add_dtable.html", slice_id=slice_id)
+
 
     @has_access_api
     @expose("/datasources/")
@@ -384,10 +452,12 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
 
     def get_query_string_response(self, viz_obj: BaseViz) -> FlaskResponse:
         query = None
+        print("Get Queryyyyyyyyyyyyyyy")
         try:
             query_obj = viz_obj.query_obj()
             if query_obj:
                 query = viz_obj.datasource.get_query_str(query_obj)
+                print(str(query) + "Querrrrrrrryyyyy")
         except Exception as ex:  # pylint: disable=broad-except
             err_msg = utils.error_msg_from_exception(ex)
             logger.exception(err_msg)
@@ -401,6 +471,7 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
         )
 
     def get_raw_results(self, viz_obj: BaseViz) -> FlaskResponse:
+        print("get raw result")
         return self.json_response(
             {"data": viz_obj.get_df_payload()["df"].to_dict("records")}
         )
@@ -411,23 +482,29 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
     def generate_json(
         self, viz_obj: BaseViz, response_type: Optional[str] = None
     ) -> FlaskResponse:
+        print("json gen start")
         if response_type == utils.ChartDataResultFormat.CSV:
+            print("csv")
             return CsvResponse(
                 viz_obj.get_csv(),
                 status=200,
                 headers=generate_download_headers("csv"),
                 mimetype="application/csv",
-            )
+         )
 
         if response_type == utils.ChartDataResultType.QUERY:
+            print("Query" + str(response_type))
             return self.get_query_string_response(viz_obj)
 
         if response_type == utils.ChartDataResultType.RESULTS:
+            print("Result")
             return self.get_raw_results(viz_obj)
 
         if response_type == utils.ChartDataResultType.SAMPLES:
+            print("sample")
             return self.get_samples(viz_obj)
 
+        print("get payload")
         payload = viz_obj.get_payload()
         return data_payload_response(*viz_obj.payload_json_and_has_error(payload))
 
@@ -518,19 +595,18 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
                 break
 
         form_data = get_form_data()[0]
-
+        print(str(form_data))
         try:
             datasource_id, datasource_type = get_datasource_info(
                 datasource_id, datasource_type, form_data
             )
-
             viz_obj = get_viz(
                 datasource_type=cast(str, datasource_type),
                 datasource_id=datasource_id,
                 form_data=form_data,
                 force=request.args.get("force") == "true",
             )
-
+            print(str(viz_obj) + "Teeeeeeeeest")
             return self.generate_json(viz_obj, response_type)
         except SupersetException as ex:
             return json_error_response(utils.error_msg_from_exception(ex))

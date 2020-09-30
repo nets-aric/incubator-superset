@@ -16,7 +16,7 @@
 # under the License.
 import json
 
-from flask_appbuilder import expose, has_access
+from flask_appbuilder import expose, has_access, permission_name
 from flask_appbuilder.models.sqla.interface import SQLAInterface
 from flask_babel import lazy_gettext as _
 
@@ -65,6 +65,7 @@ class SliceModelView(
             ),
         )
 
+
     @expose("/list/")
     @has_access
     def list(self) -> FlaskResponse:
@@ -98,5 +99,6 @@ class SliceAsync(SliceModelView):  # pylint: disable=too-many-ancestors
         "slice_name",
         "slice_url",
         "viz_type",
+        "dtable_link",
     ]
-    label_columns = {"icons": " ", "slice_link": _("Chart")}
+    label_columns = {"icons": " ", "slice_link": _("Chart"),"dtable_link": " "}

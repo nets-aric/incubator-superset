@@ -1220,50 +1220,6 @@ msgstr ""
 msgid "Changing this dataset is forbidden"
 msgstr ""
 
-#: superset/tasks/schedules.py:124
-#, python-format
-msgid ""
-"\n"
-"        *%(name)s*\n"
-"\n"
-"        <%(url)s|Explore in Superset>\n"
-"        "
-msgstr ""
-
-#: superset/tasks/schedules.py:136 superset/tasks/schedules.py:365
-#, python-format
-msgid "<b><a href=\"%(url)s\">Explore in Superset</a></b><p></p>"
-msgstr ""
-
-#: superset/tasks/schedules.py:149
-#, python-format
-msgid ""
-"\n"
-"            <b><a href=\"%(url)s\">Explore in Superset</a></b><p></p>\n"
-"            <img src=\"cid:%(msgid)s\">\n"
-"            "
-msgstr ""
-
-#: superset/tasks/schedules.py:301 superset/tasks/schedules.py:444
-#, python-format
-msgid "%(prefix)s %(title)s"
-msgstr ""
-
-#: superset/tasks/schedules.py:364
-#, python-format
-msgid "%(name)s.csv"
-msgstr ""
-
-#: superset/tasks/schedules.py:372
-#, python-format
-msgid ""
-"\n"
-"        *%(slice_name)s*\n"
-"\n"
-"        <%(slice_url_user_friendly)s|Explore in Superset>\n"
-"        "
-msgstr ""
-
 #: superset/templates/appbuilder/navbar_right.html:35
 msgid "New"
 msgstr ""

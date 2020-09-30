@@ -1,3 +1,4 @@
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -262,6 +263,18 @@ class Slice(
     def slice_link(self) -> Markup:
         name = escape(self.chart)
         return Markup(f'<a href="{self.url}">{name}</a>')
+
+    @property
+    def dtable_url(self):
+        form_data = {"slice_id": self.id}
+        params = parse.quote(json.dumps(form_data))
+        base_url = '/datatableview/datatable/{}'.format(self.id) + "?slice_id=" + str(self.id) + "&datasource_id=" + str(self.datasource_id)  + "&datasource_type=" + str(self.datasource_type)
+        return f"{base_url}&form_data={params}"
+
+    @property
+    def dtable_link(self):
+        url = self.dtable_url
+        return Markup(f'<a href="{url}">DataTable</a>')
 
     @property
     def changed_by_url(self) -> str:

@@ -36,7 +36,7 @@ class SliceMixin:  # pylint: disable=too-few-public-methods
         "datasource_name",
         "owners",
     )
-    list_columns = ["slice_link", "viz_type", "datasource_link", "creator", "modified"]
+    list_columns = ["slice_link", "viz_type", "datasource_link", "creator", "modified", "dtable_link"]
     order_columns = [
         "slice_name",
         "viz_type",
@@ -86,6 +86,7 @@ class SliceMixin:  # pylint: disable=too-few-public-methods
         "slice_name": _("Name"),
         "table": _("Table"),
         "viz_type": _("Visualization Type"),
+        "dtable_link": _(" "),
     }
 
     add_form_query_rel_fields = {"dashboards": [["name", DashboardFilter, None]]}
