@@ -24,6 +24,7 @@ from superset.db_engine_specs.base import BaseEngineSpec, TimestampExpression
 
 class PinotEngineSpec(BaseEngineSpec):  # pylint: disable=abstract-method
     engine = "pinot"
+    engine_name = "Apache Pinot"
     allows_subqueries = False
     allows_joins = False
     allows_column_aliases = False
@@ -84,9 +85,7 @@ class PinotEngineSpec(BaseEngineSpec):  # pylint: disable=abstract-method
             if not granularity:
                 raise NotImplementedError("No pinot grain spec for " + str(time_grain))
         else:
-            return TimestampExpression(
-                f"{{col}}", col  # pylint: disable=f-string-without-interpolation
-            )
+            return TimestampExpression("{{col}}", col)
         # In pinot the output is a string since there is no timestamp column like pg
         time_expr = f"DATETIMECONVERT({{col}}, '{tf}', '{tf}', '{granularity}')"
         return TimestampExpression(time_expr, col)

@@ -1,16 +1,21 @@
 name: Frontend
 
-on: [push, pull_request]
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
 
 jobs:
-  frontend-build:
-    name: build
+  build:
     runs-on: ubuntu-18.04
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
     - name: Install dependencies
-      uses: apache-superset/cached-dependencies@adc6f73
+      uses: apache-superset/cached-dependencies@b90713b
       with:
         run: npm-install
     - name: lint

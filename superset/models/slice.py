@@ -35,6 +35,7 @@ from superset.models.helpers import AuditMixinNullable, ImportMixin
 from superset.models.tags import ChartUpdater
 from superset.tasks.thumbnails import cache_chart_thumbnail
 from superset.utils import core as utils
+from superset.utils.urls import get_url_path
 
 if is_feature_enabled("SIP_38_VIZ_REARCHITECTURE"):
     from superset.viz_sip38 import BaseViz, viz_types
@@ -155,10 +156,12 @@ class Slice(
 
     @property  # type: ignore
     @utils.memoized
-    def viz(self) -> BaseViz:
+    def viz(self) -> Optional[BaseViz]:
         form_data = json.loads(self.params)
-        viz_class = viz_types[self.viz_type]
-        return viz_class(datasource=self.datasource, form_data=form_data)
+        viz_class = viz_types.get(self.viz_type)
+        if viz_class:
+            return viz_class(datasource=self.datasource, form_data=form_data)
+        return None
 
     @property
     def description_markeddown(self) -> str:
@@ -170,24 +173,28 @@ class Slice(
         data: Dict[str, Any] = {}
         self.token = ""
         try:
-            data = self.viz.data
-            self.token = data.get("token")  # type: ignore
+            viz = self.viz
+            data = viz.data if viz else self.form_data
+            self.token = utils.get_form_data_token(data)
         except Exception as ex:  # pylint: disable=broad-except
             logger.exception(ex)
             data["error"] = str(ex)
         return {
             "cache_timeout": self.cache_timeout,
+            "changed_on": self.changed_on.isoformat(),
+            "changed_on_humanized": self.changed_on_humanized,
             "datasource": self.datasource_name,
             "description": self.description,
             "description_markeddown": self.description_markeddown,
             "edit_url": self.edit_url,
             "form_data": self.form_data,
+            "modified": self.modified(),
+            "owners": [
+                f"{owner.first_name} {owner.last_name}" for owner in self.owners
+            ],
             "slice_id": self.id,
             "slice_name": self.slice_name,
             "slice_url": self.slice_url,
-            "modified": self.modified(),
-            "changed_on_humanized": self.changed_on_humanized,
-            "changed_on": self.changed_on.isoformat(),
         }
 
     @property
@@ -278,7 +285,7 @@ class Slice(
 
     @property
     def changed_by_url(self) -> str:
-        return f"/superset/profile/{self.created_by.username}"  # type: ignore
+        return f"/superset/profile/{self.changed_by.username}"  # type: ignore
 
     @property
     def icons(self) -> str:
@@ -353,7 +360,8 @@ def set_related_perm(mapper: Mapper, connection: Connection, target: Slice) -> N
 def event_after_chart_changed(  # pylint: disable=unused-argument
     mapper: Mapper, connection: Connection, target: Slice
 ) -> None:
-    cache_chart_thumbnail.delay(target.id, force=True)
+    url = get_url_path("Superset.slice", slice_id=target.id, standalone="true")
+    cache_chart_thumbnail.delay(url, target.digest, force=True)
 
 
 sqla.event.listen(Slice, "before_insert", set_related_perm)

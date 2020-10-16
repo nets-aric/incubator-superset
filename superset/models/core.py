@@ -57,6 +57,7 @@ from superset.db_engine_specs.base import TimeGrain
 from superset.models.dashboard import Dashboard
 from superset.models.helpers import AuditMixinNullable, ImportMixin
 from superset.models.tags import DashboardUpdater, FavStarUpdater
+from superset.result_set import SupersetResultSet
 from superset.utils import cache as cache_util, core as utils
 
 config = app.config
@@ -190,6 +191,16 @@ class Database(
         )
 
     @property
+    def allows_virtual_table_explore(self) -> bool:
+        extra = self.get_extra()
+
+        return bool(extra.get("allows_virtual_table_explore", True))
+
+    @property
+    def explore_database_id(self) -> int:
+        return self.get_extra().get("explore_database_id", self.id)
+
+    @property
     def data(self) -> Dict[str, Any]:
         return {
             "id": self.id,
@@ -198,6 +209,8 @@ class Database(
             "allow_multi_schema_metadata_fetch": self.allow_multi_schema_metadata_fetch,
             "allows_subquery": self.allows_subquery,
             "allows_cost_estimate": self.allows_cost_estimate,
+            "allows_virtual_table_explore": self.allows_virtual_table_explore,
+            "explore_database_id": self.explore_database_id,
         }
 
     @property
@@ -237,6 +250,10 @@ class Database(
     def default_schemas(self) -> List[str]:
         return self.get_extra().get("default_schemas", [])
 
+    @property
+    def connect_args(self) -> Dict[str, Any]:
+        return self.get_extra().get("engine_params", {}).get("connect_args", {})
+
     @classmethod
     def get_password_masked_url_from_uri(  # pylint: disable=invalid-name
         cls, uri: str
@@ -245,10 +262,8 @@ class Database(
         return cls.get_password_masked_url(sqlalchemy_url)
 
     @classmethod
-    def get_password_masked_url(
-        cls, url: URL  # pylint: disable=redefined-outer-name
-    ) -> URL:
-        url_copy = deepcopy(url)
+    def get_password_masked_url(cls, masked_url: URL) -> URL:
+        url_copy = deepcopy(masked_url)
         if url_copy.password is not None:
             url_copy.password = PASSWORD_MASK
         return url_copy
@@ -262,19 +277,17 @@ class Database(
         self.sqlalchemy_uri = str(conn)  # hides the password
 
     def get_effective_user(
-        self,
-        url: URL,  # pylint: disable=redefined-outer-name
-        user_name: Optional[str] = None,
+        self, object_url: URL, user_name: Optional[str] = None,
     ) -> Optional[str]:
         """
         Get the effective user, especially during impersonation.
-        :param url: SQL Alchemy URL object
+        :param object_url: SQL Alchemy URL object
         :param user_name: Default username
         :return: The effective username
         """
         effective_username = None
         if self.impersonate_user:
-            effective_username = url.username
+            effective_username = object_url.username
             if user_name:
                 effective_username = user_name
             elif (
@@ -376,21 +389,18 @@ class Database(
                 _log_query(sqls[-1])
                 self.db_engine_spec.execute(cursor, sqls[-1])
 
-                if cursor.description is not None:
-                    columns = [col_desc[0] for col_desc in cursor.description]
-                else:
-                    columns = []
-
-                df = pd.DataFrame.from_records(
-                    data=list(cursor.fetchall()), columns=columns, coerce_float=True
+                data = self.db_engine_spec.fetch_data(cursor)
+                result_set = SupersetResultSet(
+                    data, cursor.description, self.db_engine_spec
                 )
-
+                df = result_set.to_pandas_df()
                 if mutator:
                     mutator(df)
 
                 for k, v in df.dtypes.items():
                     if v.type == numpy.object_ and needs_conversion(df[k]):
                         df[k] = df[k].apply(utils.json_dumps_w_dates)
+
                 return df
 
     def compile_sqla_query(self, qry: Select, schema: Optional[str] = None) -> str:
@@ -596,6 +606,11 @@ class Database(
             autoload=True,
             autoload_with=self.get_sqla_engine(),
         )
+
+    def get_table_comment(
+        self, table_name: str, schema: Optional[str] = None
+    ) -> Optional[str]:
+        return self.db_engine_spec.get_table_comment(self.inspector, table_name, schema)
 
     def get_columns(
         self, table_name: str, schema: Optional[str] = None

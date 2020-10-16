@@ -25,11 +25,12 @@ from superset.db_engine_specs.postgres import PostgresBaseEngineSpec
 from superset.utils import core as utils
 
 if TYPE_CHECKING:
-    from superset.models.core import Database  # pylint: disable=unused-import
+    from superset.models.core import Database
 
 
 class SnowflakeEngineSpec(PostgresBaseEngineSpec):
     engine = "snowflake"
+    engine_name = "Snowflake"
     force_column_alias_quotes = True
     max_column_name_length = 256
 

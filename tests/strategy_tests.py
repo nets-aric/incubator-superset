@@ -50,10 +50,7 @@ mock_positions = {
 }
 
 
-class CacheWarmUpTests(SupersetTestCase):
-    def __init__(self, *args, **kwargs):
-        super(CacheWarmUpTests, self).__init__(*args, **kwargs)
-
+class TestCacheWarmUp(SupersetTestCase):
     def test_get_form_data_chart_only(self):
         chart_id = 1
         result = get_form_data(chart_id, None)
@@ -171,7 +168,7 @@ class CacheWarmUpTests(SupersetTestCase):
             "slice_id": chart_id,
             "extra_filters": [
                 {"col": "name", "op": "in", "val": ["Alice", "Bob"]},
-                {"col": "__time_range", "op": "in", "val": "100 years ago : today"},
+                {"col": "__time_range", "op": "==", "val": "100 years ago : today"},
             ],
         }
         self.assertEqual(result, expected)

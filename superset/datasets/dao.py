@@ -24,6 +24,8 @@ from superset.connectors.sqla.models import SqlaTable, SqlMetric, TableColumn
 from superset.dao.base import BaseDAO
 from superset.extensions import db
 from superset.models.core import Database
+from superset.models.dashboard import Dashboard
+from superset.models.slice import Slice
 from superset.views.base import DatasourceFilter
 
 logger = logging.getLogger(__name__)
@@ -50,12 +52,34 @@ class DatasetDAO(BaseDAO):
             return None
 
     @staticmethod
+    def get_related_objects(database_id: int) -> Dict[str, Any]:
+        charts = (
+            db.session.query(Slice)
+            .filter(
+                Slice.datasource_id == database_id, Slice.datasource_type == "table"
+            )
+            .all()
+        )
+        chart_ids = [chart.id for chart in charts]
+
+        dashboards = (
+            (
+                db.session.query(Dashboard)
+                .join(Dashboard.slices)
+                .filter(Slice.id.in_(chart_ids))
+            )
+            .distinct()
+            .all()
+        )
+        return dict(charts=charts, dashboards=dashboards)
+
+    @staticmethod
     def validate_table_exists(database: Database, table_name: str, schema: str) -> bool:
         try:
             database.get_table(table_name, schema=schema)
             return True
         except SQLAlchemyError as ex:  # pragma: no cover
-            logger.error("Got an error %s validating table: %s", str(ex), table_name)
+            logger.warning("Got an error %s validating table: %s", str(ex), table_name)
             return False
 
     @staticmethod

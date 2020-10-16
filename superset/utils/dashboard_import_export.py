@@ -21,9 +21,11 @@ from datetime import datetime
 from io import BytesIO
 from typing import Any, Dict, Optional
 
+from flask_babel import lazy_gettext as _
 from sqlalchemy.orm import Session
 
 from superset.connectors.sqla.models import SqlaTable, SqlMetric, TableColumn
+from superset.exceptions import DashboardImportException
 from superset.models.dashboard import Dashboard
 from superset.models.slice import Slice
 
@@ -37,6 +39,13 @@ def decode_dashboards(  # pylint: disable=too-many-return-statements
     Function to be passed into json.loads obj_hook parameter
     Recreates the dashboard object from a json representation.
     """
+    from superset.connectors.druid.models import (
+        DruidCluster,
+        DruidColumn,
+        DruidDatasource,
+        DruidMetric,
+    )
+
     if "__Dashboard__" in o:
         return Dashboard(**o["__Dashboard__"])
     if "__Slice__" in o:
@@ -47,6 +56,14 @@ def decode_dashboards(  # pylint: disable=too-many-return-statements
         return SqlaTable(**o["__SqlaTable__"])
     if "__SqlMetric__" in o:
         return SqlMetric(**o["__SqlMetric__"])
+    if "__DruidCluster__" in o:
+        return DruidCluster(**o["__DruidCluster__"])
+    if "__DruidColumn__" in o:
+        return DruidColumn(**o["__DruidColumn__"])
+    if "__DruidDatasource__" in o:
+        return DruidDatasource(**o["__DruidDatasource__"])
+    if "__DruidMetric__" in o:
+        return DruidMetric(**o["__DruidMetric__"])
     if "__datetime__" in o:
         return datetime.strptime(o["__datetime__"], "%Y-%m-%dT%H:%M:%S")
 
@@ -54,15 +71,19 @@ def decode_dashboards(  # pylint: disable=too-many-return-statements
 
 
 def import_dashboards(
-    session: Session, data_stream: BytesIO, import_time: Optional[int] = None
+    session: Session,
+    data_stream: BytesIO,
+    database_id: Optional[int] = None,
+    import_time: Optional[int] = None,
 ) -> None:
     """Imports dashboards from a stream to databases"""
     current_tt = int(time.time())
     import_time = current_tt if import_time is None else import_time
     data = json.loads(data_stream.read(), object_hook=decode_dashboards)
-    # TODO: import DRUID datasources
+    if not data:
+        raise DashboardImportException(_("No data in file"))
     for table in data["datasources"]:
-        type(table).import_obj(table, import_time=import_time)
+        type(table).import_obj(table, database_id, import_time=import_time)
     session.commit()
     for dashboard in data["dashboards"]:
         Dashboard.import_obj(dashboard, import_time=import_time)

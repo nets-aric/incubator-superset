@@ -24,15 +24,17 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship
 
 from superset import security_manager
+from superset.models.alerts import Alert
 from superset.models.helpers import AuditMixinNullable, ImportMixin
 
 metadata = Model.metadata  # pylint: disable=no-member
 
 
-class ScheduleType(enum.Enum):
+class ScheduleType(str, enum.Enum):
     slice = "slice"
     dashboard = "dashboard"
     s3 = "s3"
+    alert = "alert"
 
 class EmailDeliveryType(enum.Enum):
     attachment = "Attachment"
@@ -67,6 +69,7 @@ class EmailSchedule:
         )
 
     recipients = Column(Text)
+    slack_channel = Column(Text)
     deliver_as_group = Column(Boolean, default=False)
     delivery_type = Column(Enum(EmailDeliveryType))
     email_subject = Column(String(128))
@@ -94,6 +97,8 @@ def get_scheduler_model(report_type):
         return SliceEmailSchedule
     elif report_type == ScheduleType.s3.value:
         return S3ExportSchedule
+    elif report_type == ScheduleType.alert:
+        return Alert
     return None
 
 class S3ExportSchedule(Model, AuditMixinNullable, ImportMixin):

@@ -24,8 +24,10 @@ from contextlib import closing
 from datetime import datetime
 from typing import (
     Any,
+    Callable,
     Dict,
     List,
+    Match,
     NamedTuple,
     Optional,
     Pattern,
@@ -57,10 +59,8 @@ from superset.utils import core as utils
 
 if TYPE_CHECKING:
     # prevent circular imports
-    from superset.connectors.sqla.models import (  # pylint: disable=unused-import
-        TableColumn,
-    )
-    from superset.models.core import Database  # pylint: disable=unused-import
+    from superset.connectors.sqla.models import TableColumn
+    from superset.models.core import Database
 
 logger = logging.getLogger()
 
@@ -137,8 +137,14 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
     """Abstract class for database engine specific configurations"""
 
     engine = "base"  # str as defined in sqlalchemy.engine.engine
+    engine_name: Optional[
+        str
+    ] = None  # used for user messages, overridden in child classes
     _date_trunc_functions: Dict[str, str] = {}
     _time_grain_expressions: Dict[Optional[str], str] = {}
+    column_type_mappings: Tuple[
+        Tuple[Pattern[str], Union[TypeEngine, Callable[[Match[str]], TypeEngine]]], ...,
+    ] = ()
     time_groupby_inline = False
     limit_method = LimitMethod.FORCE_LIMIT
     time_secondary_columns = False
@@ -153,11 +159,12 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
     # default matching patterns for identifying column types
     db_column_types: Dict[utils.DbColumnType, Tuple[Pattern[Any], ...]] = {
         utils.DbColumnType.NUMERIC: (
+            re.compile(r"BIT", re.IGNORECASE),
             re.compile(r".*DOUBLE.*", re.IGNORECASE),
             re.compile(r".*FLOAT.*", re.IGNORECASE),
             re.compile(r".*INT.*", re.IGNORECASE),
             re.compile(r".*NUMBER.*", re.IGNORECASE),
-            re.compile(r".*LONG.*", re.IGNORECASE),
+            re.compile(r".*LONG$", re.IGNORECASE),
             re.compile(r".*REAL.*", re.IGNORECASE),
             re.compile(r".*NUMERIC.*", re.IGNORECASE),
             re.compile(r".*DECIMAL.*", re.IGNORECASE),
@@ -268,7 +275,7 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
     def get_time_grain_expressions(cls) -> Dict[Optional[str], str]:
         """
         Return a dict of all supported time grains including any potential added grains
-        but excluding any potentially blacklisted grains in the config file.
+        but excluding any potentially disabled grains in the config file.
 
         :return: All time grain expressions supported by the engine
         """
@@ -276,8 +283,8 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
         time_grain_expressions = cls._time_grain_expressions.copy()
         grain_addon_expressions = config["TIME_GRAIN_ADDON_EXPRESSIONS"]
         time_grain_expressions.update(grain_addon_expressions.get(cls.engine, {}))
-        blacklist: List[str] = config["TIME_GRAIN_BLACKLIST"]
-        for key in blacklist:
+        denylist: List[str] = config["TIME_GRAIN_DENYLIST"]
+        for key in denylist:
             time_grain_expressions.pop(key)
         return time_grain_expressions
 
@@ -296,7 +303,9 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
         return select_exprs
 
     @classmethod
-    def fetch_data(cls, cursor: Any, limit: int) -> List[Tuple[Any, ...]]:
+    def fetch_data(
+        cls, cursor: Any, limit: Optional[int] = None
+    ) -> List[Tuple[Any, ...]]:
         """
 
         :param cursor: Cursor instance
@@ -305,7 +314,7 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
         """
         if cls.arraysize:
             cursor.arraysize = cls.arraysize
-        if cls.limit_method == LimitMethod.FETCH_MANY:
+        if cls.limit_method == LimitMethod.FETCH_MANY and limit:
             return cursor.fetchmany(limit)
         return cursor.fetchall()
 
@@ -487,6 +496,28 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
         return None
 
     @classmethod
+    def create_table_from_excel(  # pylint: disable=too-many-arguments
+        cls,
+        filename: str,
+        table: Table,
+        database: "Database",
+        excel_to_df_kwargs: Dict[str, Any],
+        df_to_sql_kwargs: Dict[str, Any],
+    ) -> None:
+        """
+        Create table from contents of a excel. Note: this method does not create
+        metadata for the table.
+        """
+        df = pd.read_excel(io=filename, **excel_to_df_kwargs)
+        engine = cls.get_engine(database)
+        if table.schema:
+            # only add schema when it is preset and non empty
+            df_to_sql_kwargs["schema"] = table.schema
+        if engine.dialect.supports_multivalues_insert:
+            df_to_sql_kwargs["method"] = "multi"
+        cls.df_to_sql(df=df, con=engine, **df_to_sql_kwargs)
+
+    @classmethod
     def get_all_datasource_names(
         cls, database: "Database", datasource_type: str
     ) -> List[utils.DatasourceName]:
@@ -536,7 +567,7 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
         return f"{cls.engine} error: {cls._extract_error_message(ex)}"
 
     @classmethod
-    def _extract_error_message(cls, ex: Exception) -> Optional[str]:
+    def _extract_error_message(cls, ex: Exception) -> str:
         """Extract error message for queries"""
         return utils.error_msg_from_exception(ex)
 
@@ -546,9 +577,9 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
             dataclasses.asdict(
                 SupersetError(
                     error_type=SupersetErrorType.GENERIC_DB_ENGINE_ERROR,
-                    message=cls.extract_error_message(ex),
+                    message=cls._extract_error_message(ex),
                     level=ErrorLevel.ERROR,
-                    extra={"engine": cls.engine},
+                    extra={"engine_name": cls.engine_name},
                 )
             )
         ]
@@ -621,6 +652,30 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
         if schema and cls.try_remove_schema_from_table_name:
             views = [re.sub(f"^{schema}\\.", "", view) for view in views]
         return sorted(views)
+
+    @classmethod
+    def get_table_comment(
+        cls, inspector: Inspector, table_name: str, schema: Optional[str]
+    ) -> Optional[str]:
+        """
+        Get comment of table from a given schema and table
+
+        :param inspector: SqlAlchemy Inspector instance
+        :param table_name: Table name
+        :param schema: Schema name. If omitted, uses default schema for database
+        :return: comment of table
+        """
+        comment = None
+        try:
+            comment = inspector.get_table_comment(table_name, schema)
+            comment = comment.get("text") if isinstance(comment, dict) else None
+        except NotImplementedError:
+            # It's expected that some dialects don't implement the comment method
+            pass
+        except Exception as ex:  # pylint: disable=broad-except
+            logger.error("Unexpected error while fetching table comment")
+            logger.exception(ex)
+        return comment
 
     @classmethod
     def get_columns(
@@ -845,16 +900,24 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
         return label_mutated
 
     @classmethod
-    def get_sqla_column_type(cls, type_: str) -> Optional[TypeEngine]:
+    def get_sqla_column_type(cls, type_: Optional[str]) -> Optional[TypeEngine]:
         """
         Return a sqlalchemy native column type that corresponds to the column type
         defined in the data source (return None to use default type inferred by
-        SQLAlchemy). Needs to be overridden if column requires special handling
+        SQLAlchemy). Override `column_type_mappings` for specific needs
         (see MSSQL for example of NCHAR/NVARCHAR handling).
 
         :param type_: Column type returned by inspector
         :return: SqlAlchemy column type
         """
+        if not type_:
+            return None
+        for regex, sqla_type in cls.column_type_mappings:
+            match = regex.match(type_)
+            if match:
+                if callable(sqla_type):
+                    return sqla_type(match)
+                return sqla_type
         return None
 
     @staticmethod

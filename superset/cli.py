@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from subprocess import Popen
 from sys import stdout
 from typing import Any, Dict, Type, Union
@@ -34,6 +34,8 @@ from superset import app, appbuilder, security_manager
 from superset.app import create_app
 from superset.extensions import celery_app, db
 from superset.utils import core as utils
+from superset.utils.celery import session_scope
+from superset.utils.urls import get_url_path
 
 logger = logging.getLogger(__name__)
 
@@ -524,7 +526,13 @@ def compute_thumbnails(
                 action = "Processing"
             msg = f'{action} {friendly_type} "{model}" ({i+1}/{count})'
             click.secho(msg, fg="green")
-            func(model.id, force=force)
+            if friendly_type == "chart":
+                url = get_url_path(
+                    "Superset.slice", slice_id=model.id, standalone="true"
+                )
+            else:
+                url = get_url_path("Superset.dashboard", dashboard_id_or_slug=model.id)
+            func(url, model.digest, force=force)
 
     if not charts_only:
         compute_generic_thumbnail(
@@ -601,3 +609,22 @@ def sync_tags() -> None:
     add_types(db.engine, metadata)
     add_owners(db.engine, metadata)
     add_favorites(db.engine, metadata)
+
+
+@superset.command()
+@with_appcontext
+def alert() -> None:
+    """Run the alert scheduler loop"""
+    # this command is just for testing purposes
+    from superset.models.schedules import ScheduleType
+    from superset.tasks.schedules import schedule_window
+
+    click.secho("Processing one alert loop", fg="green")
+    with session_scope(nullpool=True) as session:
+        schedule_window(
+            report_type=ScheduleType.alert,
+            start_at=datetime.now() - timedelta(1000),
+            stop_at=datetime.now(),
+            resolution=6000,
+            session=session,
+        )

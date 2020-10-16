@@ -19,7 +19,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-import { t } from '@superset-ui/translation';
+import { t } from '@superset-ui/core';
 import EditableTitle from '../../components/EditableTitle';
 import TooltipWrapper from '../../components/TooltipWrapper';
 import SliceHeaderControls from './SliceHeaderControls';
@@ -47,12 +47,12 @@ const propTypes = {
   dashboardId: PropTypes.number.isRequired,
   filters: PropTypes.object.isRequired,
   addDangerToast: PropTypes.func.isRequired,
+  handleToggleFullSize: PropTypes.func.isRequired,
 };
 
 const defaultProps = {
   innerRef: null,
   forceRefresh: () => ({}),
-  removeSlice: () => ({}),
   updateSliceName: () => ({}),
   toggleExpandSlice: () => ({}),
   exploreChart: () => ({}),
@@ -97,6 +97,8 @@ class SliceHeader extends React.PureComponent {
       componentId,
       dashboardId,
       addDangerToast,
+      handleToggleFullSize,
+      isFullSize,
     } = this.props;
 
     return (
@@ -149,6 +151,8 @@ class SliceHeader extends React.PureComponent {
               componentId={componentId}
               dashboardId={dashboardId}
               addDangerToast={addDangerToast}
+              handleToggleFullSize={handleToggleFullSize}
+              isFullSize={isFullSize}
             />
           )}
         </div>

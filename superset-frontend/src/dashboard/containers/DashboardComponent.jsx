@@ -33,7 +33,7 @@ import {
   updateComponents,
   handleComponentDrop,
 } from '../actions/dashboardLayout';
-import { setDirectPathToChild } from '../actions/dashboardState';
+import { setDirectPathToChild, setMountedTab } from '../actions/dashboardState';
 import { logEvent } from '../../logger/actions';
 import { addDangerToast } from '../../messageToasts/actions';
 
@@ -53,7 +53,6 @@ const propTypes = {
 const defaultProps = {
   directPathToChild: [],
   directPathLastUpdated: 0,
-  isComponentVisible: true,
 };
 
 function mapStateToProps(
@@ -106,6 +105,7 @@ function mapDispatchToProps(dispatch) {
       updateComponents,
       handleComponentDrop,
       setDirectPathToChild,
+      setMountedTab,
       logEvent,
     },
     dispatch,

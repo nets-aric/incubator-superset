@@ -19,9 +19,9 @@
 /* eslint-env browser */
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Button, FormControl, FormGroup, Radio } from 'react-bootstrap';
-import { CategoricalColorNamespace } from '@superset-ui/color';
-import { t } from '@superset-ui/translation';
+import { FormControl, FormGroup, Radio } from 'react-bootstrap';
+import Button from 'src/components/Button';
+import { t, CategoricalColorNamespace } from '@superset-ui/core';
 
 import ModalTrigger from '../../components/ModalTrigger';
 import Checkbox from '../../components/Checkbox';
@@ -75,7 +75,9 @@ class SaveModal extends React.PureComponent {
   }
 
   toggleDuplicateSlices() {
-    this.setState({ duplicateSlices: !this.state.duplicateSlices });
+    this.setState(prevState => ({
+      duplicateSlices: !prevState.duplicateSlices,
+    }));
   }
 
   handleSaveTypeChange(event) {
@@ -191,7 +193,7 @@ class SaveModal extends React.PureComponent {
         }
         modalFooter={
           <div>
-            <Button bsStyle="primary" onClick={this.saveDashboard}>
+            <Button buttonStyle="primary" onClick={this.saveDashboard}>
               {t('Save')}
             </Button>
           </div>

@@ -35,6 +35,7 @@ from celery.schedules import crontab
 from dateutil import tz
 from flask import Blueprint
 from flask_appbuilder.security.manager import AUTH_DB
+from pandas.io.parsers import STR_NA_VALUES
 
 from superset.jinja_context import (  # pylint: disable=unused-import
     BaseTemplateProcessor,
@@ -48,6 +49,7 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from flask_appbuilder.security.sqla import models  # pylint: disable=unused-import
+
     from superset.models.core import Database  # pylint: disable=unused-import
 
 # Realtime stats logger, a StatsD implementation exists
@@ -144,9 +146,7 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 # ---------------------------------------------------------
 
 # Your App secret key
-SECRET_KEY = (
-    "\2\1thisismyscretkey\1\2\e\y\y\h"  # pylint: disable=anomalous-backslash-in-string
-)
+SECRET_KEY = "\2\1thisismyscretkey\1\2\\e\\y\\y\\h"
 
 # The SQLAlchemy connection string.
 SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(DATA_DIR, "superset.db")
@@ -170,7 +170,7 @@ QUERY_SEARCH_LIMIT = 1000
 WTF_CSRF_ENABLED = True
 
 # Add endpoints that need to be exempt from CSRF protection
-WTF_CSRF_EXEMPT_LIST = ["superset.views.core.log"]
+WTF_CSRF_EXEMPT_LIST = ["superset.views.core.log", "superset.charts.api.data"]
 
 # Whether to run the web server in debug mode or not
 DEBUG = os.environ.get("FLASK_ENV") == "development"
@@ -193,7 +193,7 @@ PROXY_FIX_CONFIG = {"x_for": 1, "x_proto": 1, "x_host": 1, "x_port": 1, "x_prefi
 APP_NAME = "Superset"
 
 # Uncomment to setup an App icon
-APP_ICON = "/static/assets/images/superset-logo@2x.png"
+APP_ICON = "/static/assets/images/superset-logo-horiz.png"
 APP_ICON_WIDTH = 126
 
 # Uncomment to specify where clicking the logo would take the user
@@ -201,7 +201,7 @@ APP_ICON_WIDTH = 126
 LOGO_TARGET_PATH = None
 
 # Enables SWAGGER UI for superset openapi spec
-# ex: http://localhost:8080/swaggerview/v1
+# ex: http://localhost:8080/swagger/v1
 FAB_API_SWAGGER_UI = True
 
 # Druid query timezone
@@ -258,10 +258,10 @@ AUTH_TYPE = AUTH_DB
 # ---------------------------------------------------
 # Roles config
 # ---------------------------------------------------
-# Grant public role the same set of permissions as for the GAMMA role.
+# Grant public role the same set of permissions as for a selected builtin role.
 # This is useful if one wants to enable anonymous users to view
 # dashboards. Explicit grant on specific datasets is still required.
-PUBLIC_ROLE_LIKE_GAMMA = False
+PUBLIC_ROLE_LIKE: Optional[str] = None
 
 # ---------------------------------------------------
 # Babel config for translations
@@ -302,12 +302,19 @@ DEFAULT_FEATURE_FLAGS: Dict[str, bool] = {
     # Exposes API endpoint to compute thumbnails
     "THUMBNAILS": False,
     "REDUCE_DASHBOARD_BOOTSTRAP_PAYLOAD": True,
+    "REMOVE_SLICE_LEVEL_LABEL_COLORS": False,
     "SHARE_QUERIES_VIA_KV_STORE": False,
     "SIP_38_VIZ_REARCHITECTURE": False,
     "TAGGING_SYSTEM": False,
     "SQLLAB_BACKEND_PERSISTENCE": False,
-    "LIST_VIEWS_NEW_UI": False,
+    "LISTVIEWS_DEFAULT_CARD_VIEW": False,
 }
+
+# Set the default view to card/grid view if thumbnail support is enabled.
+# Setting LISTVIEW_DEFAULT_CARD_VIEW to False will force the default view to
+# always be the table layout
+if DEFAULT_FEATURE_FLAGS["THUMBNAILS"]:
+    DEFAULT_FEATURE_FLAGS["LISTVIEW_DEFAULT_CARD_VIEW"] = True
 
 # This is merely a default.
 FEATURE_FLAGS: Dict[str, bool] = {}
@@ -332,7 +339,16 @@ GET_FEATURE_FLAGS_FUNC: Optional[Callable[[Dict[str, bool]], Dict[str, bool]]] =
 # Thumbnail config (behind feature flag)
 # ---------------------------------------------------
 THUMBNAIL_SELENIUM_USER = "Admin"
-THUMBNAIL_CACHE_CONFIG: CacheConfig = {"CACHE_TYPE": "null"}
+THUMBNAIL_CACHE_CONFIG: CacheConfig = {
+    "CACHE_TYPE": "null",
+    "CACHE_NO_NULL_WARNING": True,
+}
+
+# Used for thumbnails and other api: Time in seconds before selenium
+# times out after trying to locate an element on the page and wait
+# for that element to load for an alert screenshot.
+SCREENSHOT_LOCATE_WAIT = 10
+SCREENSHOT_LOAD_WAIT = 60
 
 # ---------------------------------------------------
 # Image and file configuration
@@ -365,8 +381,9 @@ CORS_OPTIONS: Dict[Any, Any] = {}
 SUPERSET_WEBSERVER_DOMAINS = None
 
 # Allowed format types for upload on Database view
-# TODO: Add processing of other spreadsheet formats (xls, xlsx etc)
-ALLOWED_EXTENSIONS = {"csv", "tsv"}
+EXCEL_EXTENSIONS = {"xlsx", "xls"}
+CSV_EXTENSIONS = {"csv", "tsv", "txt"}
+ALLOWED_EXTENSIONS = {*EXCEL_EXTENSIONS, *CSV_EXTENSIONS}
 
 # CSV Options: key/value pairs that will be passed as argument to DataFrame.to_csv
 # method.
@@ -379,8 +396,8 @@ CSV_EXPORT = {"encoding": "utf-8"}
 # List of time grains to disable in the application (see list of builtin
 # time grains in superset/db_engine_specs.builtin_time_grains).
 # For example: to disable 1 second time grain:
-# TIME_GRAIN_BLACKLIST = ['PT1S']
-TIME_GRAIN_BLACKLIST: List[str] = []
+# TIME_GRAIN_DENYLIST = ['PT1S']
+TIME_GRAIN_DENYLIST: List[str] = []
 
 # Additional time grains to be supported using similar definitions as in
 # superset/db_engine_specs.builtin_time_grains.
@@ -400,17 +417,17 @@ TIME_GRAIN_ADDON_EXPRESSIONS: Dict[str, Dict[str, str]] = {}
 
 # ---------------------------------------------------
 # List of viz_types not allowed in your environment
-# For example: Blacklist pivot table and treemap:
-#  VIZ_TYPE_BLACKLIST = ['pivot_table', 'treemap']
+# For example: Disable pivot table and treemap:
+#  VIZ_TYPE_DENYLIST = ['pivot_table', 'treemap']
 # ---------------------------------------------------
 
-VIZ_TYPE_BLACKLIST: List[str] = []
+VIZ_TYPE_DENYLIST: List[str] = []
 
 # ---------------------------------------------------
 # List of data sources not to be refreshed in druid cluster
 # ---------------------------------------------------
 
-DRUID_DATA_SOURCE_BLACKLIST: List[str] = []
+DRUID_DATA_SOURCE_DENYLIST: List[str] = []
 
 # --------------------------------------------------
 # Modules, datasources and middleware to be registered
@@ -621,6 +638,9 @@ ALLOWED_USER_CSV_SCHEMA_FUNC: Callable[
     UPLOADED_CSV_HIVE_NAMESPACE
 ] if UPLOADED_CSV_HIVE_NAMESPACE else []
 
+# Values that should be treated as nulls for the csv uploads.
+CSV_DEFAULT_NA_NAMES = list(STR_NA_VALUES)
+
 # A dictionary of items that gets merged into the Jinja context for
 # SQL Lab. The existing context gets updated with this dictionary,
 # meaning values for existing keys get overwritten by the content of this
@@ -695,6 +715,10 @@ TRACKING_URL_TRANSFORMER = lambda x: x
 # Interval between consecutive polls when using Hive Engine
 HIVE_POLL_INTERVAL = 5
 
+# Interval between consecutive polls when using Presto Engine
+# See here: https://github.com/dropbox/PyHive/blob/8eb0aeab8ca300f3024655419b93dad926c1a351/pyhive/presto.py#L93  # pylint: disable=line-too-long
+PRESTO_POLL_INTERVAL = 1
+
 # Allow for javascript controls components
 # this enables programmers to customize certain charts (like the
 # geospatial ones) by inputing javascript in controls. This exposes
@@ -730,12 +754,13 @@ DB_CONNECTION_MUTATOR = None
 #        return f"-- [SQL LAB] {username} {dttm}\n{sql}"
 SQL_QUERY_MUTATOR = None
 
-# When not using gunicorn, (nginx for instance), you may want to disable
-# using flask-compress
-ENABLE_FLASK_COMPRESS = True
-
 # Enable / disable scheduled email reports
 ENABLE_SCHEDULED_EMAIL_REPORTS = False
+
+# Enable / disable Alerts, where users can define custom SQL that
+# will send emails with screenshots of charts or dashboards periodically
+# if it meets the criteria
+ENABLE_ALERTS = False
 
 # Slack API token for the superset reports
 SLACK_API_TOKEN = None
@@ -745,6 +770,11 @@ SLACK_PROXY = None
 # Current list:
 # * Emails are sent using dry-run mode (logging only)
 SCHEDULED_EMAIL_DEBUG_MODE = False
+
+# This auth provider is used by background (offline) tasks that need to access
+# protected resources. Can be overridden by end users in order to support
+# custom auth mechanisms
+MACHINE_AUTH_PROVIDER_CLASS = "superset.utils.machine_auth.MachineAuthProvider"
 
 # Email reports - minimum time resolution (in minutes) for the crontab
 EMAIL_REPORTS_CRON_RESOLUTION = 15
@@ -775,13 +805,26 @@ EMAIL_REPORTS_SUBJECT_PREFIX = "[Report] "
 # chrome:
 #   Requires: headless chrome
 #   Limitations: unable to generate screenshots of elements
-EMAIL_REPORTS_WEBDRIVER = "firefox"
+WEBDRIVER_TYPE = "firefox"
 
 # Window size - this will impact the rendering of the data
 WEBDRIVER_WINDOW = {"dashboard": (1600, 2000), "slice": (3000, 1200)}
 
+# An optional override to the default auth hook used to provide auth to the
+# offline webdriver
+WEBDRIVER_AUTH_FUNC = None
+
 # Any config options to be passed as-is to the webdriver
 WEBDRIVER_CONFIGURATION: Dict[Any, Any] = {}
+
+# Additional args to be passed as arguments to the config object
+# Note: these options are Chrome-specific. For FF, these should
+# only include the "--headless" arg
+WEBDRIVER_OPTION_ARGS = [
+    "--force-device-scale-factor=2.0",
+    "--high-dpi-support=2.0",
+    "--headless",
+]
 
 # The base URL to query for accessing the user interface
 WEBDRIVER_BASEURL = "http://0.0.0.0:8080/"
@@ -799,7 +842,8 @@ DOCUMENTATION_URL = None
 DOCUMENTATION_TEXT = "Documentation"
 DOCUMENTATION_ICON = None  # Recommended size: 16x16
 
-# Enables the replacement react views for all the FAB views: list, edit, show.
+# Enables the replacement react views for all the FAB views (list, edit, show) with
+# designs introduced in SIP-34: https://github.com/apache/incubator-superset/issues/8976
 # This is a work in progress so not all features available in FAB have been implemented
 ENABLE_REACT_CRUD_VIEWS = False
 
@@ -833,6 +877,16 @@ TALISMAN_CONFIG = {
 # a custom security config could potentially give access to setting filters on
 # tables that users do not have access to.
 ENABLE_ROW_LEVEL_SECURITY = False
+# It is possible to customize which tables and roles are featured in the RLS
+# dropdown. When set, this dict is assigned to `add_form_query_rel_fields` and
+# `edit_form_query_rel_fields` on `RowLevelSecurityFiltersModelView`. Example:
+#
+# from flask_appbuilder.models.sqla import filters
+# RLS_FORM_QUERY_REL_FIELDS = {
+#     "roles": [["name", filters.FilterStartsWith, "RlsRole"]]
+#     "tables": [["table_name", filters.FilterContains, "rls"]]
+# }
+RLS_FORM_QUERY_REL_FIELDS: Optional[Dict[str, List[List[Any]]]] = None
 
 #
 # Flask session cookie options
@@ -842,7 +896,7 @@ ENABLE_ROW_LEVEL_SECURITY = False
 #
 SESSION_COOKIE_HTTPONLY = True  # Prevent cookie from being read by frontend JS?
 SESSION_COOKIE_SECURE = False  # Prevent cookie from being transmitted over non-tls?
-SESSION_COOKIE_SAMESITE = "Lax"  # One of [None, 'Lax', 'Strict']
+SESSION_COOKIE_SAMESITE = "Lax"  # One of [None, 'None', 'Lax', 'Strict']
 
 # Flask configuration variables
 SEND_FILE_MAX_AGE_DEFAULT = 60 * 60 * 24 * 365  # Cache static resources
@@ -903,8 +957,8 @@ if CONFIG_PATH_ENV_VAR in os.environ:
         raise
 elif importlib.util.find_spec("superset_config"):
     try:
-        from superset_config import *  # pylint: disable=import-error,wildcard-import,unused-wildcard-import
         import superset_config  # pylint: disable=import-error
+        from superset_config import *  # type: ignore  # pylint: disable=import-error,wildcard-import,unused-wildcard-import
 
         print(f"Loaded your LOCAL configuration at [{superset_config.__file__}]")
     except Exception:

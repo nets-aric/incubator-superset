@@ -17,7 +17,7 @@
 """A collection of ORM sqlalchemy models for SQL Lab"""
 import re
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import simplejson as json
 import sqlalchemy as sqla
@@ -39,7 +39,7 @@ from sqlalchemy.orm import backref, relationship
 from superset import security_manager
 from superset.models.helpers import AuditMixinNullable, ExtraJSONMixin
 from superset.models.tags import QueryUpdater
-from superset.sql_parse import CtasMethod
+from superset.sql_parse import CtasMethod, ParsedQuery, Table
 from superset.utils.core import QueryStatus, user_label
 
 
@@ -112,6 +112,7 @@ class Query(Model, ExtraJSONMixin):
             "errorMessage": self.error_message,
             "executedSql": self.executed_sql,
             "id": self.client_id,
+            "queryId": self.id,
             "limit": self.limit,
             "progress": self.progress,
             "rows": self.rows,
@@ -201,6 +202,10 @@ class SavedQuery(Model, AuditMixinNullable, ExtraJSONMixin):
 
     def url(self) -> str:
         return "/superset/sqllab?savedQueryId={0}".format(self.id)
+
+    @property
+    def sql_tables(self) -> List[Table]:
+        return list(ParsedQuery(self.sql).tables)
 
 
 class TabState(Model, AuditMixinNullable, ExtraJSONMixin):

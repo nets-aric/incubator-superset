@@ -19,7 +19,9 @@ from datetime import datetime, timedelta
 from unittest.mock import Mock, patch, PropertyMock
 
 from flask_babel import gettext as __
+import pytest
 from selenium.common.exceptions import WebDriverException
+from slack import errors, WebClient
 
 from tests.test_app import app
 from superset import db
@@ -38,11 +40,10 @@ from superset.tasks.schedules import (
 )
 from superset.models.slice import Slice
 from tests.base_tests import SupersetTestCase
+from tests.utils import read_fixture
 
-from .utils import read_fixture
 
-
-class SchedulesTestCase(SupersetTestCase):
+class TestSchedules(SupersetTestCase):
 
     RECIPIENTS = "recipient1@superset.com, recipient2@superset.com"
     BCC = "bcc@superset.com"
@@ -59,9 +60,13 @@ class SchedulesTestCase(SupersetTestCase):
                 delivery_type=EmailDeliveryType.inline,
             )
 
-            # Pick up a random slice and dashboard
-            slce = db.session.query(Slice).all()[0]
-            dashboard = db.session.query(Dashboard).all()[0]
+            # Pick up a sample slice and dashboard
+            slce = db.session.query(Slice).filter_by(slice_name="Participants").one()
+            dashboard = (
+                db.session.query(Dashboard)
+                .filter_by(dashboard_title="World Bank's Data")
+                .one()
+            )
 
             dashboard_schedule = DashboardEmailSchedule(**cls.common_data)
             dashboard_schedule.dashboard_id = dashboard.id
@@ -166,8 +171,7 @@ class SchedulesTestCase(SupersetTestCase):
         mock_driver_class.return_value = mock_driver
         mock_driver.find_elements_by_id.side_effect = [True, False]
 
-        create_webdriver()
-        create_webdriver()
+        create_webdriver(db.session)
         mock_driver.add_cookie.assert_called_once()
 
     @patch("superset.tasks.schedules.firefox.webdriver.WebDriver")
@@ -188,7 +192,7 @@ class SchedulesTestCase(SupersetTestCase):
         schedule = (
             db.session.query(DashboardEmailSchedule)
             .filter_by(id=self.dashboard_schedule)
-            .all()[0]
+            .one()
         )
 
         deliver_dashboard(
@@ -224,7 +228,7 @@ class SchedulesTestCase(SupersetTestCase):
         schedule = (
             db.session.query(DashboardEmailSchedule)
             .filter_by(id=self.dashboard_schedule)
-            .all()[0]
+            .one()
         )
 
         schedule.delivery_type = EmailDeliveryType.attachment
@@ -242,7 +246,7 @@ class SchedulesTestCase(SupersetTestCase):
         send_email_smtp.assert_called_once()
         self.assertIsNone(send_email_smtp.call_args[1]["images"])
         self.assertEqual(
-            send_email_smtp.call_args[1]["data"]["screenshot.png"],
+            send_email_smtp.call_args[1]["data"]["screenshot"],
             element.screenshot_as_png,
         )
 
@@ -268,7 +272,7 @@ class SchedulesTestCase(SupersetTestCase):
         schedule = (
             db.session.query(DashboardEmailSchedule)
             .filter_by(id=self.dashboard_schedule)
-            .all()[0]
+            .one()
         )
 
         deliver_dashboard(
@@ -307,7 +311,7 @@ class SchedulesTestCase(SupersetTestCase):
         schedule = (
             db.session.query(DashboardEmailSchedule)
             .filter_by(id=self.dashboard_schedule)
-            .all()[0]
+            .one()
         )
 
         # Send individual mails to the group
@@ -349,9 +353,7 @@ class SchedulesTestCase(SupersetTestCase):
         element.screenshot_as_png = read_fixture("sample.png")
 
         schedule = (
-            db.session.query(SliceEmailSchedule)
-            .filter_by(id=self.slice_schedule)
-            .all()[0]
+            db.session.query(SliceEmailSchedule).filter_by(id=self.slice_schedule).one()
         )
 
         schedule.email_format = SliceEmailReportFormat.visualization
@@ -364,6 +366,7 @@ class SchedulesTestCase(SupersetTestCase):
             schedule.delivery_type,
             schedule.email_format,
             schedule.deliver_as_group,
+            db.session,
         )
         mtime.sleep.assert_called_once()
         driver.screenshot.assert_not_called()
@@ -379,7 +382,7 @@ class SchedulesTestCase(SupersetTestCase):
             {
                 "channels": "#test_channel",
                 "file": element.screenshot_as_png,
-                "initial_comment": "\n        *Participants*\n\n        <http://0.0.0.0:8080/superset/slice/1/|Explore in Superset>\n        ",
+                "initial_comment": f"\n        *Participants*\n\n        <http://0.0.0.0:8080/superset/slice/{schedule.slice_id}/|Explore in Superset>\n        ",
                 "title": "[Report]  Participants",
             },
         )
@@ -403,9 +406,7 @@ class SchedulesTestCase(SupersetTestCase):
         element.screenshot_as_png = read_fixture("sample.png")
 
         schedule = (
-            db.session.query(SliceEmailSchedule)
-            .filter_by(id=self.slice_schedule)
-            .all()[0]
+            db.session.query(SliceEmailSchedule).filter_by(id=self.slice_schedule).one()
         )
 
         schedule.email_format = SliceEmailReportFormat.visualization
@@ -418,6 +419,7 @@ class SchedulesTestCase(SupersetTestCase):
             schedule.delivery_type,
             schedule.email_format,
             schedule.deliver_as_group,
+            db.session,
         )
 
         mtime.sleep.assert_called_once()
@@ -425,7 +427,7 @@ class SchedulesTestCase(SupersetTestCase):
         send_email_smtp.assert_called_once()
 
         self.assertEqual(
-            send_email_smtp.call_args[1]["data"]["screenshot.png"],
+            send_email_smtp.call_args[1]["data"]["screenshot"],
             element.screenshot_as_png,
         )
 
@@ -434,7 +436,7 @@ class SchedulesTestCase(SupersetTestCase):
             {
                 "channels": "#test_channel",
                 "file": element.screenshot_as_png,
-                "initial_comment": "\n        *Participants*\n\n        <http://0.0.0.0:8080/superset/slice/1/|Explore in Superset>\n        ",
+                "initial_comment": f"\n        *Participants*\n\n        <http://0.0.0.0:8080/superset/slice/{schedule.slice_id}/|Explore in Superset>\n        ",
                 "title": "[Report]  Participants",
             },
         )
@@ -453,9 +455,7 @@ class SchedulesTestCase(SupersetTestCase):
         response.read.return_value = self.CSV
 
         schedule = (
-            db.session.query(SliceEmailSchedule)
-            .filter_by(id=self.slice_schedule)
-            .all()[0]
+            db.session.query(SliceEmailSchedule).filter_by(id=self.slice_schedule).one()
         )
 
         schedule.email_format = SliceEmailReportFormat.data
@@ -468,6 +468,7 @@ class SchedulesTestCase(SupersetTestCase):
             schedule.delivery_type,
             schedule.email_format,
             schedule.deliver_as_group,
+            db.session,
         )
 
         send_email_smtp.assert_called_once()
@@ -481,7 +482,7 @@ class SchedulesTestCase(SupersetTestCase):
             {
                 "channels": "#test_channel",
                 "file": self.CSV,
-                "initial_comment": "\n        *Participants*\n\n        <http://0.0.0.0:8080/superset/slice/1/|Explore in Superset>\n        ",
+                "initial_comment": f"\n        *Participants*\n\n        <http://0.0.0.0:8080/superset/slice/{schedule.slice_id}/|Explore in Superset>\n        ",
                 "title": "[Report]  Participants",
             },
         )
@@ -499,9 +500,7 @@ class SchedulesTestCase(SupersetTestCase):
         mock_urlopen.return_value.getcode.return_value = 200
         response.read.return_value = self.CSV
         schedule = (
-            db.session.query(SliceEmailSchedule)
-            .filter_by(id=self.slice_schedule)
-            .all()[0]
+            db.session.query(SliceEmailSchedule).filter_by(id=self.slice_schedule).one()
         )
 
         schedule.email_format = SliceEmailReportFormat.data
@@ -514,6 +513,7 @@ class SchedulesTestCase(SupersetTestCase):
             schedule.delivery_type,
             schedule.email_format,
             schedule.deliver_as_group,
+            db.session,
         )
 
         send_email_smtp.assert_called_once()
@@ -526,7 +526,15 @@ class SchedulesTestCase(SupersetTestCase):
             {
                 "channels": "#test_channel",
                 "file": self.CSV,
-                "initial_comment": "\n        *Participants*\n\n        <http://0.0.0.0:8080/superset/slice/1/|Explore in Superset>\n        ",
+                "initial_comment": f"\n        *Participants*\n\n        <http://0.0.0.0:8080/superset/slice/{schedule.slice_id}/|Explore in Superset>\n        ",
                 "title": "[Report]  Participants",
             },
         )
+
+
+def test_slack_client_compatibility():
+    c2 = WebClient()
+    # slackclient >2.5.0 raises TypeError: a bytes-like object is required, not 'str
+    # and requires to path a filepath instead of the bytes directly
+    with pytest.raises(errors.SlackApiError):
+        c2.files_upload(channels="#bogdan-test2", file=b"blabla", title="Test upload")

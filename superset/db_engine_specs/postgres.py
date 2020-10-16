@@ -24,7 +24,6 @@ from superset.db_engine_specs.base import BaseEngineSpec
 from superset.utils import core as utils
 
 if TYPE_CHECKING:
-    # pylint: disable=unused-import
     from superset.models.core import Database  # pragma: no cover
 
 
@@ -38,6 +37,7 @@ class PostgresBaseEngineSpec(BaseEngineSpec):
     """ Abstract class for Postgres 'like' databases """
 
     engine = ""
+    engine_name = "PostgreSQL"
 
     _time_grain_expressions = {
         None: "{col}",
@@ -52,7 +52,9 @@ class PostgresBaseEngineSpec(BaseEngineSpec):
     }
 
     @classmethod
-    def fetch_data(cls, cursor: Any, limit: int) -> List[Tuple[Any, ...]]:
+    def fetch_data(
+        cls, cursor: Any, limit: Optional[int] = None
+    ) -> List[Tuple[Any, ...]]:
         cursor.tzinfo_factory = FixedOffsetTimezone
         if not cursor.description:
             return []
@@ -83,5 +85,6 @@ class PostgresEngineSpec(PostgresBaseEngineSpec):
         if tt == utils.TemporalType.DATE:
             return f"TO_DATE('{dttm.date().isoformat()}', 'YYYY-MM-DD')"
         if tt == utils.TemporalType.TIMESTAMP:
-            return f"""TO_TIMESTAMP('{dttm.isoformat(sep=" ", timespec="microseconds")}', 'YYYY-MM-DD HH24:MI:SS.US')"""  # pylint: disable=line-too-long
+            dttm_formatted = dttm.isoformat(sep=" ", timespec="microseconds")
+            return f"""TO_TIMESTAMP('{dttm_formatted}', 'YYYY-MM-DD HH24:MI:SS.US')"""
         return None

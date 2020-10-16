@@ -27,7 +27,6 @@ from superset.db_engine_specs.base import BaseEngineSpec
 from superset.utils import core as utils
 
 if TYPE_CHECKING:
-    # pylint: disable=unused-import
     from superset.models.core import Database  # pragma: no cover
 
 
@@ -37,6 +36,7 @@ class BigQueryEngineSpec(BaseEngineSpec):
     As contributed by @mxmzdlv on issue #945"""
 
     engine = "bigquery"
+    engine_name = "Google BigQuery"
     max_column_name_length = 128
 
     """
@@ -84,7 +84,9 @@ class BigQueryEngineSpec(BaseEngineSpec):
         return None
 
     @classmethod
-    def fetch_data(cls, cursor: Any, limit: int) -> List[Tuple[Any, ...]]:
+    def fetch_data(
+        cls, cursor: Any, limit: Optional[int] = None
+    ) -> List[Tuple[Any, ...]]:
         data = super().fetch_data(cursor, limit)
         # Support type BigQuery Row, introduced here PR #4071
         # google.cloud.bigquery.table.Row
