@@ -14,7 +14,6 @@ class TableBuilder(object):
          print("Generate SQL")
          chart_id = self.request_values["chart_id"]
          s_query = self.request_values["sql_query"]
-         print(s_query)
          curr_line = -1
          length = s_query.count('\n')
          druid_sql = ""
@@ -48,10 +47,8 @@ class TableBuilder(object):
          else:
              query_limit = 10000
 
-         print(self.request_values["query_limit"].isdigit())
          druid_sql += " LIMIT " + str(query_limit)
          druid_sql = "{ \"query\" : " + "\"" + druid_sql + "\" }"
-         print(druid_sql)
          druid_obj = json.loads(druid_sql)
          druid_request = "https://druid-query.internal.nets-analytics.net:8282/druid/v2/sql/"
          rp=requests.post(druid_request, json = druid_obj)

@@ -40,7 +40,6 @@ def get_sql_columns():
           if current_user.is_authenticated:
             print("User logged in")
             s_query = request.args.get('sql_query')
-            print(s_query)
             chart_id = request.args.get('chart_id')
             column_list = "[ "
             column_list_return= ""

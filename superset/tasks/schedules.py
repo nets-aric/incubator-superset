@@ -149,7 +149,6 @@ def _deliver_email(  # pylint: disable=too-many-arguments
         )
 
 def _export_s3(s3_path, slice_name, email):
-    print("///////////Exporting to s3///////////////")
     s3 = boto3.resource('s3')
     timestr = time.strftime("%Y%m%d%H%M%S")
     file_path = "s3_export/" + timestr + "_" + slice_name.replace(" ", "_") + ".csv"
@@ -337,7 +336,6 @@ def _get_slice_data(
 
     # TODO: Move to the csv module
     content = response.read()
-    print("//////////////Creating CSV//////////////////")
     if report_type == ScheduleType.s3.value:
         # data = {__("%(name)s.csv", name=slc.slice_name): content}
         data = content
@@ -465,7 +463,6 @@ def deliver_slice(  # pylint: disable=too-many-arguments
         raise RuntimeError("Unknown email report format")
 
     if report_type == ScheduleType.s3.value:
-        print("Executing _export_s3")
         _export_s3(s3_path, slice_name, email )
 
     if recipients:
@@ -542,7 +539,6 @@ def schedule_email_report(
                 None,
             )
         elif report_type == ScheduleType.s3:
-            print("attempting s333333333333333333333333333333")
             deliver_slice(
                 schedule.slice_id,
                 None,
@@ -558,7 +554,6 @@ def schedule_email_report(
                 schedule.slice.slice_name,
             )
         else:
-            print(str(report_type))
             raise RuntimeError("Unknown report type")
 
 
