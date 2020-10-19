@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify, request
 from superset.dtable.mod_tables.serverside.serverside_table import ServerSideTable
-from superset.dtable.mod_tables.serverside import table_schemas
 import requests
 import json
 import re
