@@ -20,6 +20,8 @@
 These objects represent the backend of all the visualizations that
 Superset can render.
 """
+import requests
+import sqlparse
 import copy
 import dataclasses
 import inspect
@@ -82,6 +84,10 @@ config = app.config
 stats_logger = config["STATS_LOGGER"]
 relative_start = config["DEFAULT_RELATIVE_START_TIME"]
 relative_end = config["DEFAULT_RELATIVE_END_TIME"]
+tokenise_query = config["TOKENISE_QUERY"]
+tokenise_post_url = config["TOKENISE_POST_URL"]
+tokenise_access_token = config["TOKENISE_ACCESS_TOKEN"]
+tokenise_lookup_name = config["TOKENISE_LOOKUP_NAME"]
 logger = logging.getLogger(__name__)
 
 METRIC_KEYS = [
@@ -268,6 +274,102 @@ class BaseViz:
         df = self.get_df(query_obj)
         return df.to_dict(orient="records")
 
+    def tokenise_fixed_string(self, fixed_string: str) -> str:
+        response = requests.post(tokenise_post_url,
+                data="\"" + fixed_string + "\"",                         
+                headers={"content-type":"text/plain", "Access-Token": tokenise_access_token},
+                )
+        return response.text.strip()
+
+    def extract_lookup_info(self, sql_string: str, regex: str) -> Tuple[str, str]:
+        rawLookups = re.findall(regex, sql_string)
+        if rawLookups:
+            lookup = [lookup.strip() for lookup in rawLookups][0]
+            lookupFunction = re.match("^\s*(\w+)\s*\((.*)\)", lookup)
+            lookupFunctionSplit = lookupFunction.group(2).split(',')
+            lookupColumn = eval(lookupFunctionSplit[0])
+            lookupName = eval(lookupFunctionSplit[1])
+            return lookupColumn, lookupName
+        else:
+            return None
+
+    def tokenise_query_obj_sql(self, query_obj: QueryObjectDict) -> QueryObjectDict:
+        rawSql = self.datasource.sql
+        formattedSql = sqlparse.format(rawSql, reindent=True, keyword_case="upper", identifier_case="upper", strip_comments=True)
+        filters = query_obj.get("filter")
+        if filters:
+            modified_query_obj = copy.copy(query_obj)
+            modified_query_obj["filter"] = []
+            for filter in filters:
+                new_filter = copy.copy(filter)
+                column = filter.get("col")
+                value = filter.get("val")
+                regex = f".*LOOKUP.*AS.*.*{column}.*"
+                result = self.extract_lookup_info(formattedSql, regex)
+                if result:
+                    lookupColumn, lookupName = result
+                    if lookupName == tokenise_lookup_name:
+                        token = self.tokenise_fixed_string(value)
+                        new_filter["col"] = lookupColumn
+                        new_filter["val"] = token
+                        modified_query_obj["filter"].append(new_filter)
+                    else:
+                        modified_query_obj["filter"].append(filter)
+                else:
+                    modified_query_obj["filter"].append(filter)
+            return modified_query_obj
+        else:
+            return query_obj
+
+    def tokenise_query_obj_table(self, query_obj: QueryObjectDict) -> QueryObjectDict:
+        filters = query_obj.get("filter")
+        if filters:
+            modified_query_obj = query_obj
+            modified_query_obj["filter"] = []
+            for filter in filters:
+                new_filter = copy.copy(filter)
+                column = filter.get("col")
+                value = filter.get("val")
+                filter_col = self.datasource.get_column(column)
+                if filter_col.expression:
+                    rawSql = filter_col.expression
+                    formattedSql = sqlparse.format(rawSql, reindent=True, keyword_case="upper", identifier_case="upper", strip_comments=True)
+                    regex = ".*LOOKUP.*"
+                    result = self.extract_lookup_info(formattedSql, regex)
+                    if result:
+                        lookupColumn, lookupName = result
+                        if lookupName == tokenise_lookup_name:
+                            token = self.tokenise_fixed_string(value)
+                            new_filter["col"] = lookupColumn
+                            new_filter["val"] = token
+                            modified_query_obj["filter"].append(new_filter)
+                        else:
+                            modified_query_obj["filter"].append(filter)
+                    else:
+                        modified_query_obj["filter"].append(filter)
+                else:
+                    modified_query_obj["filter"].append(filter)
+            return modified_query_obj
+        else:
+            return query_obj
+
+    def tokenise_query_obj(self, query_obj: QueryObjectDict) -> QueryObjectDict:
+        try:
+            if self.datasource.sql: 
+                processed_query_obj = self.tokenise_query_obj_sql(copy.copy(query_obj))
+            elif self.datasource.type == "table":
+                processed_query_obj = self.tokenise_query_obj_table(copy.copy(query_obj))
+            else:
+                return query_object
+            
+            if processed_query_obj:
+                return processed_query_obj
+            else:
+                return query_object
+        except Exception as e:
+            return query_obj
+
+
     def get_df(self, query_obj: Optional[QueryObjectDict] = None) -> pd.DataFrame:
         """Returns a pandas dataframe based on the query object"""
         if not query_obj:
@@ -282,6 +384,9 @@ class BaseViz:
             granularity_col = self.datasource.get_column(query_obj["granularity"])
             if granularity_col:
                 timestamp_format = granularity_col.python_date_format
+        
+        if tokenise_query:
+            query_obj = self.tokenise_query_obj(query_obj)
 
         # The datasource here can be different backend but the interface is common
         self.results = self.datasource.query(query_obj)
