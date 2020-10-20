@@ -88,6 +88,7 @@ tokenise_query = config["TOKENISE_QUERY"]
 tokenise_post_url = config["TOKENISE_POST_URL"]
 tokenise_access_token = config["TOKENISE_ACCESS_TOKEN"]
 tokenise_lookup_name = config["TOKENISE_LOOKUP_NAME"]
+tokenise_timeout_value = config["TOKENISE_TIMEOUT_VALUE"]
 logger = logging.getLogger(__name__)
 
 METRIC_KEYS = [
@@ -276,6 +277,7 @@ class BaseViz:
 
     def tokenise_fixed_string(self, fixed_string: str) -> str:
         response = requests.post(tokenise_post_url,
+                timeout=tokenise_timeout_value,
                 data="\"" + fixed_string + "\"",                         
                 headers={"content-type":"text/plain", "Access-Token": tokenise_access_token},
                 )
