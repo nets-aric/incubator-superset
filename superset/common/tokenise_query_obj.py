@@ -169,4 +169,4 @@ def tokenise_query_obj(self, query_obj: QueryObjectDict) -> QueryObjectDict:
         if processed_query_obj:
             return processed_query_obj
         else:
-            return query_obj.to_dict()                                                                                                                                                                            173,0-1       Bo
+            return query_obj.to_dict()
