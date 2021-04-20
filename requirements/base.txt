@@ -299,5 +299,8 @@ yarl==1.6.3
 zipp==3.4.1
     # via -r requirements/base.in
 
+# via nets-additions
+requests-futures==1.0.0
+
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
