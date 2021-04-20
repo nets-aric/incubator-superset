@@ -66,6 +66,10 @@ config = app.config
 stats_logger: BaseStatsLogger = config["STATS_LOGGER"]
 logger = logging.getLogger(__name__)
 
+tokenise_query = config["TOKENISE_QUERY"]
+tokenise_post_url = config["TOKENISE_POST_URL"]
+tokenise_access_token = config["TOKENISE_ACCESS_TOKEN"]
+tokenise_lookup_name = config["TOKENISE_LOOKUP_NAME"]
 
 class CachedTimeOffset(TypedDict):
     df: pd.DataFrame
@@ -183,7 +187,10 @@ class QueryContextProcessor:
         # support multiple queries from different data sources.
 
         # The datasource here can be different backend but the interface is common
-        result = query_context.datasource.query(query_object.to_dict())
+        if tokenise_query:
+            result = self.datasource.query(tokenise_query_obj(self, query_object))
+        else:
+            result = self.datasource.query(query_object.to_dict())
         query = result.query + ";\n\n"
 
         df = result.df
