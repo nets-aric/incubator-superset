@@ -50,6 +50,11 @@ logger = logging.getLogger(__name__)
 
 DETOKENISE_POST_URL = None
 DETOKENISE_ACCESS_TOKEN = None
+TOKENISE_QUERY = False
+TOKENISE_POST_URL = None
+TOKENISE_ACCESS_TOKEN = None
+TOKENISE_LOOKUP_NAME = None
+TOKENISE_TIMEOUT_VALUE = 30
 
 if TYPE_CHECKING:
     from flask_appbuilder.security.sqla import models  # pylint: disable=unused-import
