@@ -53,6 +53,8 @@ TOKENISE_POST_URL = None
 TOKENISE_ACCESS_TOKEN = None
 TOKENISE_LOOKUP_NAME = None
 TOKENISE_TIMEOUT_VALUE = 30
+DETOKENISE_POST_URL = None
+DETOKENISE_ACCESS_TOKEN = None
 
 if TYPE_CHECKING:
     from flask_appbuilder.security.sqla import models  # pylint: disable=unused-import
