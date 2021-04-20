@@ -20,7 +20,6 @@ from typing import Any, ClassVar, Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 from flask_babel import _
-import json
 
 from superset import app, db, is_feature_enabled
 from superset.annotation_layers.dao import AnnotationLayerDAO
@@ -33,9 +32,6 @@ from superset.exceptions import (
     CacheLoadError,
     QueryObjectValidationError,
     SupersetException,
-    NullValueException,
-    QueryObjectValidationError,
-    SpatialException,
 )
 from superset.extensions import cache_manager, security_manager
 from superset.stats_logger import BaseStatsLogger
@@ -54,19 +50,10 @@ from superset.utils.core import (
 )
 from superset.views.utils import get_viz
 
-import requests
-import sqlparse
-from superset.common.tokenise_query_obj import tokenise_query_obj
-
 config = app.config
 stats_logger: BaseStatsLogger = config["STATS_LOGGER"]
-
-tokenise_query = config["TOKENISE_QUERY"]
-tokenise_post_url = config["TOKENISE_POST_URL"]
-tokenise_access_token = config["TOKENISE_ACCESS_TOKEN"]
-tokenise_lookup_name = config["TOKENISE_LOOKUP_NAME"]
-
 logger = logging.getLogger(__name__)
+
 
 class QueryContext:
     """
@@ -124,11 +111,7 @@ class QueryContext:
                 timestamp_format = dttm_col.python_date_format
 
         # The datasource here can be different backend but the interface is common
-
-        if tokenise_query:
-            result = self.datasource.query(tokenise_query_obj(self, query_object))
-        else:
-            result = self.datasource.query(query_object.to_dict())
+        result = self.datasource.query(query_object.to_dict())
 
         df = result.df
         # Transform the timestamp we received from database to pandas supported
@@ -147,7 +130,7 @@ class QueryContext:
             if self.enforce_numerical_metrics:
                 self.df_metrics_to_num(df, query_object)
 
-            df.replace([np.inf, -np.inf], np.nan, inplace=True)
+            df.replace([np.inf, -np.inf], np.nan)
             df = query_object.exec_post_processing(df)
 
         return {

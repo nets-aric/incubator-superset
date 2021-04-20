@@ -85,17 +85,10 @@ import dataclasses  # isort:skip
 if TYPE_CHECKING:
     from superset.connectors.base.models import BaseDatasource
 
-from superset.common.tokenise_query_obj import tokenise_query_obj
-
 config = app.config
 stats_logger = config["STATS_LOGGER"]
 relative_start = config["DEFAULT_RELATIVE_START_TIME"]
 relative_end = config["DEFAULT_RELATIVE_END_TIME"]
-tokenise_query = config["TOKENISE_QUERY"]
-tokenise_post_url = config["TOKENISE_POST_URL"]
-tokenise_access_token = config["TOKENISE_ACCESS_TOKEN"]
-tokenise_lookup_name = config["TOKENISE_LOOKUP_NAME"]
-tokenise_timeout_value = config["TOKENISE_TIMEOUT_VALUE"]
 logger = logging.getLogger(__name__)
 
 METRIC_KEYS = [
@@ -277,9 +270,6 @@ class BaseViz:
             granularity_col = self.datasource.get_column(query_obj["granularity"])
             if granularity_col:
                 timestamp_format = granularity_col.python_date_format
-
-        if tokenise_query:
-            query_obj = tokenise_query_obj(self, query_obj)
 
         # The datasource here can be different backend but the interface is common
         self.results = self.datasource.query(query_obj)
