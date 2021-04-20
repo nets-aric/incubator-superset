@@ -39,6 +39,7 @@ from superset.exceptions import (
 )
 from superset.extensions import cache_manager, security_manager
 from superset.stats_logger import BaseStatsLogger
+from superset.utils import csv
 from superset.utils.cache import generate_cache_key, set_and_log_cache
 from superset.utils.core import (
     ChartDataResultFormat,
