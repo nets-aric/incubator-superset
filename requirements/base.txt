@@ -301,5 +301,8 @@ yarl==1.6.2
 zipp==3.4.0
 # via importlib-metadata
 
+# via nets-additions
+requests-futures==1.0.0
+
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
