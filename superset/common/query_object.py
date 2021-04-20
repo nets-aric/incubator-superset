@@ -41,8 +41,18 @@ from superset.utils.date_parser import get_since_until, parse_human_timedelta
 from superset.utils.hashing import md5_sha_from_dict
 from superset.views.utils import get_time_range_endpoints
 
+from requests_futures.sessions import FuturesSession
+from multiprocessing import Pool
+import re
+
 config = app.config
 logger = logging.getLogger(__name__)
+
+session = FuturesSession()
+session.headers.update({
+    'Access-Token': config['DETOKENISE_ACCESS_TOKEN'],
+    'Content-Type': 'text/plain; charset=utf-8'
+})
 
 # TODO: Type Metrics dictionary with TypedDict when it becomes a vanilla python type
 #  https://github.com/python/mypy/issues/5288
@@ -94,6 +104,7 @@ class QueryObject:
     datasource: Optional[BaseDatasource]
     result_type: Optional[ChartDataResultType]
     is_rowcount: bool
+    detoken_select: bool
 
     def __init__(
         self,
@@ -119,12 +130,15 @@ class QueryObject:
         orderby: Optional[List[OrderBy]] = None,
         post_processing: Optional[List[Optional[Dict[str, Any]]]] = None,
         is_rowcount: bool = False,
+        detoken_select: bool = False,
         **kwargs: Any,
     ):
         columns = columns or []
         groupby = groupby or []
         extras = extras or {}
         annotation_layers = annotation_layers or []
+
+        self.detoken_select = detoken_select
 
         self.is_rowcount = is_rowcount
         self.datasource = None
@@ -334,6 +348,21 @@ class QueryObject:
 
         return md5_sha_from_dict(cache_dict, default=json_int_dttm_ser, ignore_nan=True)
 
+    @staticmethod
+    def detokenise(token: str) -> str:
+        if re.search(r't:(.*)', token):
+            req = session.post(config['DETOKENISE_POST_URL'], data='\"'+token+'\"')
+            return str(req.result().text)
+        return token
+
+    @classmethod
+    def detokeniser(cls, df: DataFrame) -> DataFrame:
+        if df.dtype == 'object':
+            p = Pool()
+            df = p.map(cls.detokenise, df)
+            p.close()
+        return df
+
     def exec_post_processing(self, df: DataFrame) -> DataFrame:
         """
         Perform post processing operations on DataFrame.
@@ -344,6 +373,10 @@ class QueryObject:
         :raises QueryObjectValidationError: If the post processing operation
                  is incorrect
         """
+
+        if self.detoken_select:
+            df = df.apply(self.detokeniser)
+
         for post_process in self.post_processing:
             operation = post_process.get("operation")
             if not operation:
