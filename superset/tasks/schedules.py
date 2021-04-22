@@ -20,6 +20,8 @@ It will be removed in future versions of Superset. Please
 migrate to the new scheduler: `superset.tasks.scheduler`.
 """
 
+"""Utility functions used across Superset"""
+import boto3
 import logging
 import time
 import urllib.request
@@ -62,6 +64,7 @@ from superset.models.schedules import (
     get_scheduler_model,
     ScheduleType,
     SliceEmailReportFormat,
+    S3ExportSchedule,
 )
 from superset.models.slice import Slice
 from superset.tasks.alerts.observer import observe
@@ -150,9 +153,15 @@ def _deliver_email(  # pylint: disable=too-many-arguments
             dryrun=config["SCHEDULED_EMAIL_DEBUG_MODE"],
         )
 
+def _export_s3(s3_path, slice_name, email):
+    s3 = boto3.resource('s3')
+    timestr = time.strftime("%Y%m%d%H%M%S")
+    file_path = "s3_export/" + timestr + "_" + slice_name.replace(" ", "_") + ".csv"
+    object = s3.Object(s3_path, file_path)
+    object.put(Body=email)
 
 def _generate_report_content(
-    delivery_type: EmailDeliveryType, screenshot: bytes, name: str, url: str
+    delivery_type: EmailDeliveryType, schedule_body: Optional[str], screenshot: bytes, name: str, url: str
 ) -> ReportContent:
     data: Optional[Dict[str, Any]]
 
@@ -169,11 +178,9 @@ def _generate_report_content(
     if delivery_type == EmailDeliveryType.attachment:
         images = None
         data = {"screenshot": screenshot}
-        body = __(
-            '<b><a href="%(url)s">Explore in Superset</a></b><p></p>',
-            name=name,
-            url=url,
-        )
+        e_body = '<pre>' + schedule_body + '</pre><p></p>'
+        body = __( e_body )
+
     elif delivery_type == EmailDeliveryType.inline:
         # Get the domain from the 'From' address ..
         # and make a message id without the < > in the ends
@@ -182,15 +189,8 @@ def _generate_report_content(
 
         images = {msgid: screenshot}
         data = None
-        body = __(
-            """
-            <b><a href="%(url)s">Explore in Superset</a></b><p></p>
-            <img src="cid:%(msgid)s">
-            """,
-            name=name,
-            url=url,
-            msgid=msgid,
-        )
+        e_body = '<pre>'+ schedule_body + """</pre><p></p><img src="cid:%(msgid)s">"""
+        body = __( e_body )
 
     return ReportContent(body, data, images, slack_message, screenshot)
 
@@ -245,6 +245,8 @@ def deliver_dashboard(  # pylint: disable=too-many-locals
     slack_channel: Optional[str],
     delivery_type: EmailDeliveryType,
     deliver_as_group: bool,
+    schedule_body: str,
+    schedule_subject: str,
 ) -> None:
 
     """
@@ -286,16 +288,13 @@ def deliver_dashboard(  # pylint: disable=too-many-locals
         # Generate the email body and attachments
         report_content = _generate_report_content(
             delivery_type,
+            schedule_body,
             screenshot,
             dashboard.dashboard_title,
             dashboard_url_user_friendly,
         )
 
-        subject = __(
-            "%(prefix)s %(title)s",
-            prefix=config["EMAIL_REPORTS_SUBJECT_PREFIX"],
-            title=dashboard.dashboard_title,
-        )
+        subject = __( schedule_subject )
 
         if recipients:
             _deliver_email(
@@ -316,7 +315,7 @@ def deliver_dashboard(  # pylint: disable=too-many-locals
 
 
 def _get_slice_data(
-    slc: Slice, delivery_type: EmailDeliveryType, session: Session
+    slc: Slice, delivery_type: EmailDeliveryType, schedule_body: str, report_type: Optional[str], session: Session
 ) -> ReportContent:
     slice_url = _get_url_path(
         "Superset.explore_json", csv="true", form_data=json.dumps({"slice_id": slc.id})
@@ -342,6 +341,12 @@ def _get_slice_data(
 
     # TODO: Move to the csv module
     content = response.read()
+    if report_type == ScheduleType.s3.value:
+        # data = {__("%(name)s.csv", name=slc.slice_name): content}
+        data = content
+        e_body = '<pre> N/A </pre><p></p>'
+        body = __( e_body )
+        return data
     rows = [r.split(b",") for r in content.splitlines()]
 
     if delivery_type == EmailDeliveryType.inline:
@@ -360,11 +365,8 @@ def _get_slice_data(
 
     elif delivery_type == EmailDeliveryType.attachment:
         data = {__("%(name)s.csv", name=slc.slice_name): content}
-        body = __(
-            '<b><a href="%(url)s">Explore in Superset</a></b><p></p>',
-            name=slc.slice_name,
-            url=slice_url_user_friendly,
-        )
+        e_body = '<pre>' + str(schedule_body) + '</pre><p></p>'
+        body = __(e_body)
 
     # how to: https://api.slack.com/reference/surfaces/formatting
     slack_message = __(
@@ -435,7 +437,7 @@ def _get_slice_visualization(
 
     # Generate the email body and attachments
     return _generate_report_content(
-        delivery_type, screenshot, slc.slice_name, slice_url_user_friendly
+        delivery_type, None,screenshot, slc.slice_name, slice_url_user_friendly
     )
 
 
@@ -445,32 +447,36 @@ def deliver_slice(  # pylint: disable=too-many-arguments
     slack_channel: Optional[str],
     delivery_type: EmailDeliveryType,
     email_format: SliceEmailReportFormat,
+    schedule_body: str,
+    schedule_subject: str,
     deliver_as_group: bool,
     session: Session,
+    report_type: Optional[str],
+    s3_path: Optional[str],
+    slice_name: Optional[str],
 ) -> None:
     """
     Given a schedule, delivery the slice as an email report
     """
     slc = session.query(Slice).filter_by(id=slice_id).one()
 
-    if email_format == SliceEmailReportFormat.data:
-        report_content = _get_slice_data(slc, delivery_type, session)
+    if report_type == ScheduleType.s3.value:
+        email = _get_slice_data(slc, None, None, report_type, session)
+    elif email_format == SliceEmailReportFormat.data:
+        report_content = _get_slice_data(slc, delivery_type, schedule_body, None, session)
     elif email_format == SliceEmailReportFormat.visualization:
         report_content = _get_slice_visualization(slc, delivery_type, session)
     else:
         raise RuntimeError("Unknown email report format")
 
-    subject = __(
-        "%(prefix)s %(title)s",
-        prefix=config["EMAIL_REPORTS_SUBJECT_PREFIX"],
-        title=slc.slice_name,
-    )
+    if report_type == ScheduleType.s3.value:
+        _export_s3(s3_path, slice_name, email )
 
     if recipients:
         _deliver_email(
             recipients,
             deliver_as_group,
-            subject,
+            schedule_subject,
             report_content.body,
             report_content.data,
             report_content.images,
@@ -505,13 +511,14 @@ def schedule_email_report(
             logger.info("Ignoring deactivated schedule")
             return
 
-        recipients = recipients or schedule.recipients
-        slack_channel = slack_channel or schedule.slack_channel
-        logger.info(
-            "Starting report for slack: %s and recipients: %s.",
-            slack_channel,
-            recipients,
-        )
+        if report_type != ScheduleType.s3:
+            recipients = recipients or schedule.recipients
+            slack_channel = slack_channel or schedule.slack_channel
+            logger.info(
+                "Starting report for slack: %s and recipients: %s.",
+                slack_channel,
+                recipients,
+            )
 
         if report_type == ScheduleType.dashboard:
             deliver_dashboard(
@@ -520,6 +527,8 @@ def schedule_email_report(
                 slack_channel,
                 schedule.delivery_type,
                 schedule.deliver_as_group,
+                schedule.email_body,
+                schedule.email_subject,
             )
         elif report_type == ScheduleType.slice:
             deliver_slice(
@@ -527,9 +536,29 @@ def schedule_email_report(
                 recipients,
                 slack_channel,
                 schedule.delivery_type,
-                schedule.email_format,
+               	schedule.email_format,
+                schedule.email_body,
+                schedule.email_subject,
                 schedule.deliver_as_group,
                 session,
+                None,
+                None,
+                None,
+            )
+        elif report_type == ScheduleType.s3:
+            deliver_slice(
+                schedule.slice_id,
+                None,
+                None,
+                None,
+               	None,
+                None,
+                None,
+                None,
+                session,
+                report_type,
+                schedule.s3_path,
+                schedule.slice.slice_name,
             )
         else:
             raise RuntimeError("Unknown report type")
@@ -786,7 +815,7 @@ def schedule_window(
     model_cls = get_scheduler_model(report_type)
 
     if not model_cls:
-        return None
+        print("No model found")
 
     schedules = session.query(model_cls).filter(model_cls.active.is_(True))
 
@@ -817,6 +846,8 @@ def get_scheduler_action(report_type: str) -> Optional[Callable[..., Any]]:
         return schedule_email_report
     if report_type == ScheduleType.slice:
         return schedule_email_report
+    if report_type == ScheduleType.s3:
+        return schedule_email_report
     if report_type == ScheduleType.alert:
         return schedule_alert_query
     return None
@@ -838,6 +869,7 @@ def schedule_hourly() -> None:
     with session_scope(nullpool=True) as session:
         schedule_window(ScheduleType.dashboard, start_at, stop_at, resolution, session)
         schedule_window(ScheduleType.slice, start_at, stop_at, resolution, session)
+        schedule_window(ScheduleType.s3, start_at, stop_at, resolution, session)
 
 
 @celery_app.task(name="alerts.schedule_check")
