@@ -18,8 +18,9 @@
 DEPRECATION NOTICE: this module is deprecated and will be removed on 2.0.
 """
 
+import boto3
 import enum
-from typing import Type, Union
+from typing import Type, Union, Optional
 
 import simplejson as json
 from croniter import croniter
@@ -38,6 +39,7 @@ from superset.models.schedules import (
     DashboardEmailSchedule,
     ScheduleType,
     SliceEmailSchedule,
+    S3ExportSchedule,
 )
 from superset.models.slice import Slice
 from superset.tasks.schedules import schedule_email_report
@@ -206,6 +208,8 @@ class DashboardEmailScheduleView(
         "crontab",
         "recipients",
         "slack_channel",
+        "email_subject",
+        "email_body",
         "deliver_as_group",
         "delivery_type",
         "test_email",
@@ -232,6 +236,8 @@ class DashboardEmailScheduleView(
         "crontab": _("Crontab"),
         "recipients": _("Recipients"),
         "slack_channel": _("Slack Channel"),
+        "email_subject": _("Email Subject"),
+        "email_body": _("Email Body"),
         "deliver_as_group": _("Deliver As Group"),
         "delivery_type": _("Delivery Type"),
     }
@@ -284,6 +290,8 @@ class SliceEmailScheduleView(EmailScheduleView):  # pylint: disable=too-many-anc
         "crontab",
         "recipients",
         "slack_channel",
+        "email_subject",
+        "email_body",
         "deliver_as_group",
         "delivery_type",
         "email_format",
@@ -312,6 +320,8 @@ class SliceEmailScheduleView(EmailScheduleView):  # pylint: disable=too-many-anc
         "crontab": _("Crontab"),
         "recipients": _("Recipients"),
         "slack_channel": _("Slack Channel"),
+        "email_subject":_("Email Subject"),
+        "email_body": _("Email Body"),
         "deliver_as_group": _("Deliver As Group"),
         "delivery_type": _("Delivery Type"),
         "email_format": _("Email Format"),
@@ -338,3 +348,61 @@ class SliceEmailScheduleView(EmailScheduleView):  # pylint: disable=too-many-anc
         if item.slice is None:
             raise SupersetException("Slice is mandatory")
         super(SliceEmailScheduleView, self).pre_add(item)
+
+class S3ScheduleView(SupersetModelView, DeleteMixin):  # pylint: disable=too-many-ancestors
+    add_title = _("Schedule S3 Exports for Charts")
+    edit_title = add_title
+    list_title = _("Manage S3 Exports for Charts")
+    schedule_type = ScheduleType.s3
+    datamodel = SQLAInterface(S3ExportSchedule)
+    order_columns = ["user", "slice", "created_on"]
+    list_columns = [
+        "slice",
+        "active",
+        "crontab",
+        "user",
+        "s3_path",
+    ]
+
+    add_columns = [
+        "slice",
+        "active",
+        "crontab",
+        "s3_path",
+    ]
+
+    edit_columns = add_columns
+
+    search_columns = [
+        "slice",
+        "active",
+        "user",
+    ]
+
+    label_columns = {
+        "slice": _("Chart"),
+        "created_on": _("Created On"),
+        "changed_on": _("Changed On"),
+        "user": _("User"),
+        "active": _("Active"),
+        "crontab": _("Crontab"),
+        "s3_path": _("S3 Path"),
+    }
+
+    def pre_add(self, item):
+        if item.slice is None:
+            raise SupersetException("Slice is mandatory")
+        if item.s3_path is None:
+            raise SupersetException("S3 path  is mandatory")
+        if not croniter.is_valid(item.crontab):
+            raise SupersetException("Invalid crontab format")
+#        if not str(item.s3_path).startswith("s3://"):
+#            raise SupersetException("Path must start with s3://")
+        s3 = boto3.resource('s3')
+        bucket = s3.Bucket(item.s3_path)
+        if not bucket.creation_date:
+            raise SupersetException("Invalid Bucket")
+        super(S3ScheduleView, self).pre_add(item)
+
+    def pre_update(self, item):
+        self.pre_add(item)

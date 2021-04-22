@@ -195,6 +195,7 @@ class SupersetAppInitializer:
         from superset.views.schedules import (
             DashboardEmailScheduleView,
             SliceEmailScheduleView,
+            S3ScheduleView,
         )
         from superset.views.sql_lab import (
             SavedQueryView,
@@ -435,6 +436,14 @@ class SupersetAppInitializer:
                 SliceEmailScheduleView,
                 "Chart Emails",
                 label=__("Chart Email Schedules"),
+                category="Manage",
+                category_label=__("Manage"),
+                icon="fa-search",
+            )
+            appbuilder.add_view(
+                S3ScheduleView,
+                "S3 Schedule",
+                label=__("S3 Export Schedules"),
                 category="Manage",
                 category_label=__("Manage"),
                 icon="fa-search",
