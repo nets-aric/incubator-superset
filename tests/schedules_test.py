@@ -71,6 +71,8 @@ class TestSchedules(SupersetTestCase):
             dashboard_schedule = DashboardEmailSchedule(**self.common_data)
             dashboard_schedule.dashboard_id = dashboard.id
             dashboard_schedule.user_id = 1
+            dashboard_schedule.schedule_body = "EMAIL BODY"
+            dashboard_schedule.schedule_subject = "EMAIL SUBJECT"
             db.session.add(dashboard_schedule)
 
             slice_schedule = SliceEmailSchedule(**self.common_data)
@@ -78,6 +80,8 @@ class TestSchedules(SupersetTestCase):
             slice_schedule.user_id = 1
             slice_schedule.email_format = SliceEmailReportFormat.data
             slice_schedule.slack_channel = "#test_channel"
+            slice_schedule.schedule_body = "EMAIL BODY"
+            slice_schedule.schedule_subject = "EMAIL SUBJECT"
 
             db.session.add(slice_schedule)
             db.session.commit()

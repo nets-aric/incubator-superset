@@ -82,8 +82,6 @@ class DashboardEmailSchedule(
 ):
     __tablename__ = "dashboard_email_schedules"
     dashboard_id = Column(Integer, ForeignKey("dashboards.id"))
-    email_subject = Column(String(128))
-    email_body = Column(Text)
     dashboard = relationship(
         "Dashboard", backref="email_schedules", foreign_keys=[dashboard_id]
     )
@@ -92,8 +90,6 @@ class DashboardEmailSchedule(
 class SliceEmailSchedule(Model, AuditMixinNullable, ImportExportMixin, EmailSchedule):
     __tablename__ = "slice_email_schedules"
     slice_id = Column(Integer, ForeignKey("slices.id"))
-    email_subject = Column(String(128))
-    email_body = Column(Text)
     slice = relationship("Slice", backref="email_schedules", foreign_keys=[slice_id])
     email_format = Column(Enum(SliceEmailReportFormat))
 
