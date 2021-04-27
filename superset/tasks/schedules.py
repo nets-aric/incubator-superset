@@ -474,7 +474,7 @@ def deliver_slice(  # pylint: disable=too-many-arguments
         raise RuntimeError("Unknown email report format")
 
     if report_type == ScheduleType.s3.value:
-        _export_s3(s3_path, slice_name, email )
+        _export_s3(s3_path, slice_name, email)
 
     if recipients:
         _deliver_email(
@@ -488,7 +488,7 @@ def deliver_slice(  # pylint: disable=too-many-arguments
     if slack_channel:
         deliver_slack_msg(
             slack_channel,
-            subject,
+            schedule_subject,
             report_content.slack_message,
             report_content.slack_attachment,
         )
