@@ -82,6 +82,9 @@ class TestSchedules(SupersetTestCase):
             slice_schedule.slack_channel = "#test_channel"
             slice_schedule.schedule_body = "EMAIL BODY"
             slice_schedule.schedule_subject = "EMAIL SUBJECT"
+            slice_schedule.report_type = "REPORT"
+            slice_schedule.s3_path = "S3://PATH"
+            slice_schedule.slice_name = "NAME"
 
             db.session.add(slice_schedule)
             db.session.commit()
@@ -397,6 +400,9 @@ class TestSchedules(SupersetTestCase):
 
         schedule.schedule_subject = "EMAIL SUBJECT"
         schedule.schedule_body = "EMAIL BODY"
+        schedule.report_type = "REPORT"
+        schedule.s3_path = "S3://PATH"
+        schedule.slice_name = "NAME"
 
         schedule.email_format = SliceEmailReportFormat.visualization
         schedule.delivery_format = EmailDeliveryType.inline
@@ -407,10 +413,13 @@ class TestSchedules(SupersetTestCase):
             schedule.slack_channel,
             schedule.delivery_type,
             schedule.email_format,
-            schedule.deliver_as_group,
-            db.session,
             schedule.schedule_body,
             schedule.schedule_subject,
+            schedule.deliver_as_group,
+            db.session,
+            schedule.report_type,
+            schedule.s3_path,
+            schedule.slice_name,
         )
         mtime.sleep.assert_called_once()
         driver.screenshot.assert_not_called()
@@ -458,6 +467,9 @@ class TestSchedules(SupersetTestCase):
 
         schedule.schedule_subject = "EMAIL SUBJECT"
         schedule.schedule_body = "EMAIL BODY"
+        schedule.report_type = "REPORT"
+        schedule.s3_path = "S3://PATH"
+        schedule.slice_name = "NAME"
 
         schedule.email_format = SliceEmailReportFormat.visualization
         schedule.delivery_type = EmailDeliveryType.attachment
@@ -468,10 +480,13 @@ class TestSchedules(SupersetTestCase):
             schedule.slack_channel,
             schedule.delivery_type,
             schedule.email_format,
-            schedule.deliver_as_group,
-            db.session,
             schedule.schedule_body,
             schedule.schedule_subject,
+            schedule.deliver_as_group,
+            db.session,
+            schedule.report_type,
+            schedule.s3_path,
+            schedule.slice_name,
         )
 
         mtime.sleep.assert_called_once()
@@ -515,6 +530,9 @@ class TestSchedules(SupersetTestCase):
 
         schedule.schedule_subject = "EMAIL SUBJECT"
         schedule.schedule_body = "EMAIL BODY"
+        schedule.report_type = "REPORT"
+        schedule.s3_path = "S3://PATH"
+        schedule.slice_name = "NAME"
 
         schedule.email_format = SliceEmailReportFormat.data
         schedule.delivery_type = EmailDeliveryType.attachment
@@ -525,10 +543,13 @@ class TestSchedules(SupersetTestCase):
             schedule.slack_channel,
             schedule.delivery_type,
             schedule.email_format,
-            schedule.deliver_as_group,
-            db.session,
             schedule.schedule_body,
             schedule.schedule_subject,
+            schedule.deliver_as_group,
+            db.session,
+            schedule.report_type,
+            schedule.s3_path,
+            schedule.slice_name,
         )
 
         send_email_smtp.assert_called_once()
@@ -568,6 +589,9 @@ class TestSchedules(SupersetTestCase):
 
         schedule.schedule_subject = "EMAIL SUBJECT"
         schedule.schedule_body = "EMAIL BODY"
+        schedule.report_type = "REPORT"
+        schedule.s3_path = "S3://PATH"
+        schedule.slice_name = "NAME"
 
         schedule.email_format = SliceEmailReportFormat.data
         schedule.delivery_type = EmailDeliveryType.inline
@@ -578,10 +602,13 @@ class TestSchedules(SupersetTestCase):
             schedule.slack_channel,
             schedule.delivery_type,
             schedule.email_format,
-            schedule.deliver_as_group,
-            db.session,
             schedule.schedule_body,
             schedule.schedule_subject,
+            schedule.deliver_as_group,
+            db.session,
+            schedule.report_type,
+            schedule.s3_path,
+            schedule.slice_name,
         )
 
         send_email_smtp.assert_called_once()
