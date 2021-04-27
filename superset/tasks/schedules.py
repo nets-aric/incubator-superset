@@ -402,7 +402,7 @@ def _get_slice_screenshot(slice_id: int, session: Session) -> ScreenshotData:
 
 
 def _get_slice_visualization(
-    slc: Slice, delivery_type: EmailDeliveryType, session: Session
+    slc: Slice,delivery_type: EmailDeliveryType, schedule_body: str, session: Session
 ) -> ReportContent:
     # Create a driver, fetch the page, wait for the page to render
     driver = create_webdriver(session)
@@ -438,7 +438,7 @@ def _get_slice_visualization(
     # Generate the email body and attachments
     return _generate_report_content(
         delivery_type,
-        slc.schedule_body,
+        schedule_body,
         screenshot,
         slc.slice_name,
         slice_url_user_friendly
@@ -469,7 +469,7 @@ def deliver_slice(  # pylint: disable=too-many-arguments
     elif email_format == SliceEmailReportFormat.data:
         report_content = _get_slice_data(slc, delivery_type, schedule_body, None, session)
     elif email_format == SliceEmailReportFormat.visualization:
-        report_content = _get_slice_visualization(slc, delivery_type, session)
+        report_content = _get_slice_visualization(slc, delivery_type, schedule_body, session)
     else:
         raise RuntimeError("Unknown email report format")
 
