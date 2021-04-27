@@ -504,7 +504,7 @@ class TestSchedules(SupersetTestCase):
                 "channels": "#test_channel",
                 "file": element.screenshot_as_png,
                 "initial_comment": f"\n        *Region Filter*\n\n        <http://0.0.0.0:8080/superset/slice/{schedule.slice_id}/|Explore in Superset>\n        ",
-                "title": "[Report]  Region Filter",
+                "title": "EMAIL SUBJECT",
             },
         )
 
