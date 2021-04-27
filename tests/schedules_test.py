@@ -564,7 +564,7 @@ class TestSchedules(SupersetTestCase):
                 "channels": "#test_channel",
                 "file": self.CSV,
                 "initial_comment": f"\n        *Region Filter*\n\n        <http://0.0.0.0:8080/superset/slice/{schedule.slice_id}/|Explore in Superset>\n        ",
-                "title": "[Report]  Region Filter",
+                "title": "EMAIL SUBJECT",
             },
         )
 
@@ -622,7 +622,7 @@ class TestSchedules(SupersetTestCase):
                 "channels": "#test_channel",
                 "file": self.CSV,
                 "initial_comment": f"\n        *Region Filter*\n\n        <http://0.0.0.0:8080/superset/slice/{schedule.slice_id}/|Explore in Superset>\n        ",
-                "title": "[Report]  Region Filter",
+                "title": "EMAIL SUBJECT",
             },
         )
 
