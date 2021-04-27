@@ -437,7 +437,11 @@ def _get_slice_visualization(
 
     # Generate the email body and attachments
     return _generate_report_content(
-        delivery_type, None,screenshot, slc.slice_name, slice_url_user_friendly
+        delivery_type,
+        slc.schedule_body,
+        screenshot,
+        slc.slice_name,
+        slice_url_user_friendly
     )
 
 
