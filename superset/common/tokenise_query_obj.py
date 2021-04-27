@@ -162,11 +162,8 @@ def tokenise_query_obj_table(self, query_obj: QueryObjectDict) -> QueryObjectDic
 
 def tokenise_query_obj(self, query_obj: QueryObjectDict) -> QueryObjectDict:
         if self.datasource.sql:
-            processed_query_obj = tokenise_query_obj_sql(self, copy.copy(query_obj))
-        else:
+            return tokenise_query_obj_sql(self, copy.copy(query_obj))
+        elif type(query_obj) != dict:
             return query_obj.to_dict()
-
-        if processed_query_obj:
-            return processed_query_obj
         else:
-            return query_obj.to_dict()
+            return query_obj
