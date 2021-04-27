@@ -202,6 +202,9 @@ class TestSchedules(SupersetTestCase):
             .one()
         )
 
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
+
         deliver_dashboard(
             schedule.dashboard_id,
             schedule.recipients,
@@ -242,6 +245,9 @@ class TestSchedules(SupersetTestCase):
             .filter_by(id=self.dashboard_schedule)
             .one()
         )
+
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
 
         schedule.delivery_type = EmailDeliveryType.attachment
 
@@ -292,6 +298,9 @@ class TestSchedules(SupersetTestCase):
             .one()
         )
 
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
+
         deliver_dashboard(
             schedule.dashboard_id,
             schedule.recipients,
@@ -335,6 +344,9 @@ class TestSchedules(SupersetTestCase):
             .filter_by(id=self.dashboard_schedule)
             .one()
         )
+
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
 
         # Send individual mails to the group
         schedule.deliver_as_group = False
@@ -382,6 +394,9 @@ class TestSchedules(SupersetTestCase):
         schedule = (
             db.session.query(SliceEmailSchedule).filter_by(id=self.slice_schedule).one()
         )
+
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
 
         schedule.email_format = SliceEmailReportFormat.visualization
         schedule.delivery_format = EmailDeliveryType.inline
@@ -441,6 +456,9 @@ class TestSchedules(SupersetTestCase):
             db.session.query(SliceEmailSchedule).filter_by(id=self.slice_schedule).one()
         )
 
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
+
         schedule.email_format = SliceEmailReportFormat.visualization
         schedule.delivery_type = EmailDeliveryType.attachment
 
@@ -495,6 +513,9 @@ class TestSchedules(SupersetTestCase):
             db.session.query(SliceEmailSchedule).filter_by(id=self.slice_schedule).one()
         )
 
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
+
         schedule.email_format = SliceEmailReportFormat.data
         schedule.delivery_type = EmailDeliveryType.attachment
 
@@ -544,6 +565,9 @@ class TestSchedules(SupersetTestCase):
         schedule = (
             db.session.query(SliceEmailSchedule).filter_by(id=self.slice_schedule).one()
         )
+
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
 
         schedule.email_format = SliceEmailReportFormat.data
         schedule.delivery_type = EmailDeliveryType.inline
