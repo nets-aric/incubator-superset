@@ -19,7 +19,7 @@
 # PY stage that simply does a pip install on our requirements
 ######################################################################
 ARG PY_VER=3.7.9
-FROM python:${PY_VER} AS superset-py
+FROM python:${PY_VER}-slim AS superset-py
 
 RUN mkdir /app \
         && apt-get update -y \
@@ -45,10 +45,12 @@ RUN cd /app \
 ######################################################################
 # Node stage to deal with static asset construction
 ######################################################################
-FROM node:14 AS superset-node
+FROM node:14-alpine AS superset-node
 
 ARG NPM_VER=7
-RUN npm install -g npm@${NPM_VER}
+RUN apk -U upgrade \
+    && apk add bash \
+    && npm install -g npm@${NPM_VER}
 
 ARG NPM_BUILD_CMD="build"
 ENV BUILD_CMD=${NPM_BUILD_CMD}
@@ -74,7 +76,7 @@ RUN cd /app/superset-frontend \
 # Final lean image...
 ######################################################################
 ARG PY_VER=3.7.9
-FROM python:${PY_VER} AS lean
+FROM python:${PY_VER}-slim AS lean
 
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
