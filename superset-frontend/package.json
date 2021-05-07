@@ -176,7 +176,7 @@
     "use-query-params": "^1.1.9"
   },
   "devDependencies": {
-    "@babel/cli": "^7.12.10",
+    "@babel/cli": "^7.13.16",
     "@babel/compat-data": "^7.13.15",
     "@babel/core": "^7.12.10",
     "@babel/node": "^7.12.10",
