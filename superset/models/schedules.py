@@ -33,6 +33,7 @@ metadata = Model.metadata  # pylint: disable=no-member
 class ScheduleType(str, enum.Enum):
     slice = "slice"
     dashboard = "dashboard"
+    s3 = "s3"
     alert = "alert"
 
 
@@ -73,6 +74,8 @@ class EmailSchedule:
     deliver_as_group = Column(Boolean, default=False)
     delivery_type = Column(Enum(EmailDeliveryType))
 
+    email_subject = Column(String(128))
+    email_body = Column(Text)
 
 class DashboardEmailSchedule(
     Model, AuditMixinNullable, ImportExportMixin, EmailSchedule
@@ -98,4 +101,28 @@ def get_scheduler_model(report_type: str) -> Optional[Type[EmailSchedule]]:
         return SliceEmailSchedule
     if report_type == ScheduleType.alert:
         return Alert
+    if report_type == ScheduleType.s3:
+        return S3ExportSchedule
     return None
+
+class S3ExportSchedule(Model, AuditMixinNullable, ImportExportMixin):
+    __tablename__ = "s3_export_schedules"
+    id = Column(Integer, primary_key=True)  # pylint: disable=invalid-name
+    active = Column(Boolean, default=True, index=True)
+    crontab = Column(String(50))
+
+    @declared_attr
+    def user_id(self):
+        return Column(Integer, ForeignKey("ab_user.id"))
+
+    @declared_attr
+    def user(self):
+        return relationship(
+            security_manager.user_model,
+            backref=self.__tablename__,
+            foreign_keys=[self.user_id],
+        )
+
+    slice_id = Column(Integer, ForeignKey("slices.id"))
+    slice = relationship("Slice", backref="s3_schedules", foreign_keys=[slice_id])
+    s3_path = Column(String(50))

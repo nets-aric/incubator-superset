@@ -71,6 +71,8 @@ class TestSchedules(SupersetTestCase):
             dashboard_schedule = DashboardEmailSchedule(**self.common_data)
             dashboard_schedule.dashboard_id = dashboard.id
             dashboard_schedule.user_id = 1
+            dashboard_schedule.schedule_body = "EMAIL BODY"
+            dashboard_schedule.schedule_subject = "EMAIL SUBJECT"
             db.session.add(dashboard_schedule)
 
             slice_schedule = SliceEmailSchedule(**self.common_data)
@@ -78,6 +80,11 @@ class TestSchedules(SupersetTestCase):
             slice_schedule.user_id = 1
             slice_schedule.email_format = SliceEmailReportFormat.data
             slice_schedule.slack_channel = "#test_channel"
+            slice_schedule.schedule_body = "EMAIL BODY"
+            slice_schedule.schedule_subject = "EMAIL SUBJECT"
+            slice_schedule.report_type = "REPORT"
+            slice_schedule.s3_path = "S3://PATH"
+            slice_schedule.slice_name = "NAME"
 
             db.session.add(slice_schedule)
             db.session.commit()
@@ -198,12 +205,17 @@ class TestSchedules(SupersetTestCase):
             .one()
         )
 
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
+
         deliver_dashboard(
             schedule.dashboard_id,
             schedule.recipients,
             schedule.slack_channel,
             schedule.delivery_type,
             schedule.deliver_as_group,
+            schedule.schedule_body,
+            schedule.schedule_subject,
         )
 
         mtime.sleep.assert_called_once()
@@ -237,6 +249,9 @@ class TestSchedules(SupersetTestCase):
             .one()
         )
 
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
+
         schedule.delivery_type = EmailDeliveryType.attachment
 
         deliver_dashboard(
@@ -245,6 +260,8 @@ class TestSchedules(SupersetTestCase):
             schedule.slack_channel,
             schedule.delivery_type,
             schedule.deliver_as_group,
+            schedule.schedule_body,
+            schedule.schedule_subject,
         )
 
         mtime.sleep.assert_called_once()
@@ -284,12 +301,17 @@ class TestSchedules(SupersetTestCase):
             .one()
         )
 
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
+
         deliver_dashboard(
             schedule.dashboard_id,
             schedule.recipients,
             schedule.slack_channel,
             schedule.delivery_type,
             schedule.deliver_as_group,
+            schedule.schedule_body,
+            schedule.schedule_subject,
         )
 
         mtime.sleep.assert_called_once()
@@ -326,6 +348,9 @@ class TestSchedules(SupersetTestCase):
             .one()
         )
 
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
+
         # Send individual mails to the group
         schedule.deliver_as_group = False
 
@@ -338,6 +363,8 @@ class TestSchedules(SupersetTestCase):
             schedule.slack_channel,
             schedule.delivery_type,
             schedule.deliver_as_group,
+            schedule.schedule_body,
+            schedule.schedule_subject,
         )
 
         mtime.sleep.assert_called_once()
@@ -371,6 +398,12 @@ class TestSchedules(SupersetTestCase):
             db.session.query(SliceEmailSchedule).filter_by(id=self.slice_schedule).one()
         )
 
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
+        schedule.report_type = "REPORT"
+        schedule.s3_path = "S3://PATH"
+        schedule.slice_name = "NAME"
+
         schedule.email_format = SliceEmailReportFormat.visualization
         schedule.delivery_format = EmailDeliveryType.inline
 
@@ -380,8 +413,13 @@ class TestSchedules(SupersetTestCase):
             schedule.slack_channel,
             schedule.delivery_type,
             schedule.email_format,
+            schedule.schedule_body,
+            schedule.schedule_subject,
             schedule.deliver_as_group,
             db.session,
+            schedule.report_type,
+            schedule.s3_path,
+            schedule.slice_name,
         )
         mtime.sleep.assert_called_once()
         driver.screenshot.assert_not_called()
@@ -398,7 +436,7 @@ class TestSchedules(SupersetTestCase):
                 "channels": "#test_channel",
                 "file": element.screenshot_as_png,
                 "initial_comment": f"\n        *Region Filter*\n\n        <http://0.0.0.0:8080/superset/slice/{schedule.slice_id}/|Explore in Superset>\n        ",
-                "title": "[Report]  Region Filter",
+                "title": "EMAIL SUBJECT",
             },
         )
 
@@ -427,6 +465,12 @@ class TestSchedules(SupersetTestCase):
             db.session.query(SliceEmailSchedule).filter_by(id=self.slice_schedule).one()
         )
 
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
+        schedule.report_type = "REPORT"
+        schedule.s3_path = "S3://PATH"
+        schedule.slice_name = "NAME"
+
         schedule.email_format = SliceEmailReportFormat.visualization
         schedule.delivery_type = EmailDeliveryType.attachment
 
@@ -436,8 +480,13 @@ class TestSchedules(SupersetTestCase):
             schedule.slack_channel,
             schedule.delivery_type,
             schedule.email_format,
+            schedule.schedule_body,
+            schedule.schedule_subject,
             schedule.deliver_as_group,
             db.session,
+            schedule.report_type,
+            schedule.s3_path,
+            schedule.slice_name,
         )
 
         mtime.sleep.assert_called_once()
@@ -455,7 +504,7 @@ class TestSchedules(SupersetTestCase):
                 "channels": "#test_channel",
                 "file": element.screenshot_as_png,
                 "initial_comment": f"\n        *Region Filter*\n\n        <http://0.0.0.0:8080/superset/slice/{schedule.slice_id}/|Explore in Superset>\n        ",
-                "title": "[Report]  Region Filter",
+                "title": "EMAIL SUBJECT",
             },
         )
 
@@ -479,6 +528,12 @@ class TestSchedules(SupersetTestCase):
             db.session.query(SliceEmailSchedule).filter_by(id=self.slice_schedule).one()
         )
 
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
+        schedule.report_type = "REPORT"
+        schedule.s3_path = "S3://PATH"
+        schedule.slice_name = "NAME"
+
         schedule.email_format = SliceEmailReportFormat.data
         schedule.delivery_type = EmailDeliveryType.attachment
 
@@ -488,8 +543,13 @@ class TestSchedules(SupersetTestCase):
             schedule.slack_channel,
             schedule.delivery_type,
             schedule.email_format,
+            schedule.schedule_body,
+            schedule.schedule_subject,
             schedule.deliver_as_group,
             db.session,
+            schedule.report_type,
+            schedule.s3_path,
+            schedule.slice_name,
         )
 
         send_email_smtp.assert_called_once()
@@ -504,7 +564,7 @@ class TestSchedules(SupersetTestCase):
                 "channels": "#test_channel",
                 "file": self.CSV,
                 "initial_comment": f"\n        *Region Filter*\n\n        <http://0.0.0.0:8080/superset/slice/{schedule.slice_id}/|Explore in Superset>\n        ",
-                "title": "[Report]  Region Filter",
+                "title": "EMAIL SUBJECT",
             },
         )
 
@@ -527,6 +587,12 @@ class TestSchedules(SupersetTestCase):
             db.session.query(SliceEmailSchedule).filter_by(id=self.slice_schedule).one()
         )
 
+        schedule.schedule_subject = "EMAIL SUBJECT"
+        schedule.schedule_body = "EMAIL BODY"
+        schedule.report_type = "REPORT"
+        schedule.s3_path = "S3://PATH"
+        schedule.slice_name = "NAME"
+
         schedule.email_format = SliceEmailReportFormat.data
         schedule.delivery_type = EmailDeliveryType.inline
 
@@ -536,8 +602,13 @@ class TestSchedules(SupersetTestCase):
             schedule.slack_channel,
             schedule.delivery_type,
             schedule.email_format,
+            schedule.schedule_body,
+            schedule.schedule_subject,
             schedule.deliver_as_group,
             db.session,
+            schedule.report_type,
+            schedule.s3_path,
+            schedule.slice_name,
         )
 
         send_email_smtp.assert_called_once()
@@ -551,7 +622,7 @@ class TestSchedules(SupersetTestCase):
                 "channels": "#test_channel",
                 "file": self.CSV,
                 "initial_comment": f"\n        *Region Filter*\n\n        <http://0.0.0.0:8080/superset/slice/{schedule.slice_id}/|Explore in Superset>\n        ",
-                "title": "[Report]  Region Filter",
+                "title": "EMAIL SUBJECT",
             },
         )
 
