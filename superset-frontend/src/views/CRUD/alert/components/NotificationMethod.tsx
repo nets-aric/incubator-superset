@@ -49,11 +49,13 @@ const StyledNotificationMethod = styled.div`
   }
 `;
 
-type NotificationMethod = 'Email' | 'Slack';
+type NotificationMethod = 'Email' | 'Slack' | 'S3';
 
 type NotificationSetting = {
   method?: NotificationMethod;
   recipients: string;
+  subject: string;
+  body: string;
   options: NotificationMethod[];
 };
 
@@ -70,10 +72,12 @@ export const NotificationMethod: FunctionComponent<NotificationMethodProps> = ({
   onUpdate,
   onRemove,
 }) => {
-  const { method, recipients, options } = setting || {};
+  const { method, recipients, subject, body, options } = setting || {};
   const [recipientValue, setRecipientValue] = useState<string>(
     recipients || '',
   );
+  const [subjectValue, setSubjectValue] = useState<string>(subject || '');
+  const [bodyValue, setBodyValue] = useState<string>(body || '');
 
   if (!setting) {
     return null;
@@ -82,11 +86,15 @@ export const NotificationMethod: FunctionComponent<NotificationMethodProps> = ({
   const onMethodChange = (method: NotificationMethod) => {
     // Since we're swapping the method, reset the recipients
     setRecipientValue('');
+    setSubjectValue('');
+    setBodyValue('');
     if (onUpdate) {
       const updatedSetting = {
         ...setting,
         method,
         recipients: '',
+        subject: '',
+        body: '',
       };
 
       onUpdate(index, updatedSetting);
@@ -104,6 +112,36 @@ export const NotificationMethod: FunctionComponent<NotificationMethodProps> = ({
       const updatedSetting = {
         ...setting,
         recipients: target.value,
+      };
+
+      onUpdate(index, updatedSetting);
+    }
+  };
+
+  const onSubjectChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const { target } = event;
+
+    setSubjectValue(target.value);
+
+    if (onUpdate) {
+      const updatedSetting = {
+        ...setting,
+        subject: target.value,
+      };
+
+      onUpdate(index, updatedSetting);
+    }
+  };
+
+  const onBodyChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const { target } = event;
+
+    setBodyValue(target.value);
+
+    if (onUpdate) {
+      const updatedSetting = {
+        ...setting,
+        body: target.value,
       };
 
       onUpdate(index, updatedSetting);
@@ -148,9 +186,9 @@ export const NotificationMethod: FunctionComponent<NotificationMethodProps> = ({
           </span>
         ) : null}
       </div>
-      {method !== undefined ? (
+      {method !== undefined && method !== 'S3' ? (
         <StyledInputContainer>
-          <div className="control-label">{t(method)}</div>
+          <div className="control-label">{t('Recipients')}</div>
           <div className="input-container">
             <textarea
               name="recipients"
@@ -160,6 +198,38 @@ export const NotificationMethod: FunctionComponent<NotificationMethodProps> = ({
           </div>
           <div className="helper">
             {t('Recipients are separated by "," or ";"')}
+          </div>
+          {method === 'Email' ? (
+            <>
+              <div className="control-label">{t('Subject')}</div>
+              <div className="input-container">
+                <textarea
+                  name="subject"
+                  value={subjectValue}
+                  onChange={onSubjectChange}
+                />
+              </div>
+              <div className="control-label">{t('Body')}</div>
+              <div className="input-container">
+                <textarea
+                  name="body"
+                  value={bodyValue}
+                  onChange={onBodyChange}
+                />
+              </div>
+            </>
+          ) : null}
+        </StyledInputContainer>
+      ) : null}
+      {method === 'S3' ? (
+        <StyledInputContainer>
+          <div className="control-label">{t('S3 Bucket')}</div>
+          <div className="input-container">
+            <textarea
+              name="uri"
+              value={recipientValue}
+              onChange={onRecipientsChange}
+            />
           </div>
         </StyledInputContainer>
       ) : null}

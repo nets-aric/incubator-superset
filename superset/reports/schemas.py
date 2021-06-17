@@ -113,6 +113,16 @@ class ReportRecipientSchema(Schema):
         ),
     )
     recipient_config_json = fields.Nested(ReportRecipientConfigJSONSchema)
+    subject = fields.String(
+        description="The email subject line",
+        allow_none=False,
+        required=True,
+    )
+    body = fields.String(
+        description="The email body text",
+        allow_none=True,
+        required=True,
+    )
 
 
 class ReportSchedulePostSchema(Schema):
