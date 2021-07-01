@@ -43,6 +43,8 @@ export type Recipient = {
   recipient_config_json: {
     target: string;
   };
+  subject: string;
+  body: string;
   type: string;
 };
 

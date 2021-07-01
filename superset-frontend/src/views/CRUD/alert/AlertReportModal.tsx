@@ -60,7 +60,7 @@ interface AlertReportModalProps {
   show: boolean;
 }
 
-const NOTIFICATION_METHODS: NotificationMethod[] = ['Email', 'Slack'];
+const NOTIFICATION_METHODS: NotificationMethod[] = ['Email', 'Slack', 'S3'];
 const DEFAULT_NOTIFICATION_FORMAT = 'PNG';
 const CONDITIONS = [
   {
@@ -369,11 +369,13 @@ const NotificationMethodAdd: FunctionComponent<NotificationMethodAddProps> = ({
   );
 };
 
-type NotificationMethod = 'Email' | 'Slack';
+type NotificationMethod = 'Email' | 'Slack' | 'S3';
 
 type NotificationSetting = {
   method?: NotificationMethod;
   recipients: string;
+  subject: string;
+  body: string;
   options: NotificationMethod[];
 };
 
@@ -420,6 +422,8 @@ const AlertReportModal: FunctionComponent<AlertReportModalProps> = ({
 
     settings.push({
       recipients: '',
+      subject: '',
+      body: '',
       options: NOTIFICATION_METHODS, // TODO: Need better logic for this
     });
 
@@ -480,6 +484,8 @@ const AlertReportModal: FunctionComponent<AlertReportModalProps> = ({
           recipient_config_json: {
             target: setting.recipients,
           },
+          subject: setting.subject,
+          body: setting.body,
           type: setting.method,
         });
       }
@@ -885,6 +891,8 @@ const AlertReportModal: FunctionComponent<AlertReportModalProps> = ({
           method: setting.type as NotificationMethod,
           // @ts-ignore: Type not assignable
           recipients: config.target || setting.recipient_config_json,
+          subject: setting.subject,
+          body: setting.body,
           options: NOTIFICATION_METHODS as NotificationMethod[], // Need better logic for this
         };
       });

@@ -95,6 +95,8 @@ class ReportScheduleRestApi(BaseSupersetModelRestApi):
         "recipients.id",
         "recipients.recipient_config_json",
         "recipients.type",
+        "recipients.subject",
+        "recipients.body",
         "report_format",
         "sql",
         "type",
