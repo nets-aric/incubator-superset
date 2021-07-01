@@ -312,7 +312,7 @@
     "webpack-cli": "^3.3.11",
     "webpack-dev-server": "^3.11.0",
     "webpack-manifest-plugin": "^2.2.0",
-    "webpack-sources": "^1.4.3",
+    "webpack-sources": "^2.3.0",
     "yargs": "^15.4.1"
   },
   "stylelint": {
