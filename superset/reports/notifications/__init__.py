@@ -19,6 +19,7 @@ from superset.models.reports import ReportRecipients
 from superset.reports.notifications.base import BaseNotification, NotificationContent
 from superset.reports.notifications.email import EmailNotification
 from superset.reports.notifications.slack import SlackNotification
+from superset.reports.notifications.s3 import S3Notification
 
 
 def create_notification(
