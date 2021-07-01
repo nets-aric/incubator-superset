@@ -28,27 +28,25 @@ from superset.models.reports import ReportRecipientType
 from superset.reports.notifications.base import BaseNotification
 from superset.reports.notifications.exceptions import NotificationError
 from superset.utils.core import send_email_smtp
+from datetime import datetime
+import boto3
 
+s3_client = boto3.client('s3')
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class EmailContent:
-    body: str
-    data: Optional[Dict[str, Any]] = None
-    images: Optional[Dict[str, bytes]] = None
+class S3Content:
+    filename: str
+    data: bytes
 
 
-class EmailNotification(BaseNotification):  # pylint: disable=too-few-public-methods
+class S3Notification(BaseNotification):  # pylint: disable=too-few-public-methods
     """
     Sends an email notification for a report recipient
     """
 
-    type = ReportRecipientType.EMAIL
-
-    @staticmethod
-    def _get_smtp_domain() -> str:
-        return parseaddr(app.config["SMTP_MAIL_FROM"])[1].split("@")[1]
+    type = ReportRecipientType.S3
 
     @staticmethod
     def _error_template(text: str) -> str:
@@ -59,56 +57,28 @@ class EmailNotification(BaseNotification):  # pylint: disable=too-few-public-met
             text=text,
         )
 
-    def _get_content(self) -> EmailContent:
-        if self._content.text:
-            return EmailContent(body=self._error_template(self._content.text))
+    def _get_content(self) -> S3Content:
         # Get the domain from the 'From' address ..
         # and make a message id without the < > in the end
-        image = None
-        csv_data = None
-        domain = self._get_smtp_domain()
-        msgid = make_msgid(domain)[1:-1]
-        body = __(
-            """
-            <p>%(description)s</p>
-            <b><a href="%(url)s">Explore in Superset</a></b><p></p>
-            %(img_tag)s
-            """,
-            description=self._recipient.body or "",
-            url=self._content.url,
-            img_tag='<img src="cid:{}">'.format(msgid)
-            if self._content.screenshot
-            else "",
-        )
         if self._content.screenshot:
-            image = {msgid: self._content.screenshot}
+            img_data = self._content.screenshot
+            name = str(datetime.now()) + self._content.name + ".png"
+            name.replace(" ", "-")
+            return S3Content(filename=name, data=img_data)
         if self._content.csv:
-            csv_data = {__("%(name)s.csv", name=self._content.name): self._content.csv}
-        return EmailContent(body=body, images=image, data=csv_data)
+            csv_data = self._content.csv
+            name = str(datetime.now()) + "-" + self._content.name + ".csv"
+            name.replace(" ", "-")
+            return S3Content(filename=name, data=csv_data)
 
-    def _get_subject(self) -> str:
-        return self._recipient.subject
-
-    def _get_to(self) -> str:
+    def _get_bucket(self) -> str:
         return json.loads(self._recipient.recipient_config_json)["target"]
 
     def send(self) -> None:
-        subject = self._get_subject()
         content = self._get_content()
-        to = self._get_to()
+        bucket = self._get_bucket()
         try:
-            send_email_smtp(
-                to,
-                subject,
-                content.body,
-                app.config,
-                files=[],
-                data=content.data,
-                images=content.images,
-                bcc="",
-                mime_subtype="related",
-                dryrun=False,
-            )
-            logger.info("Report sent to email")
+            s3_client.put_object(Body=content.data, Bucket=bucket, Key=content.filename)
+            logger.info("Report sent to s3")
         except Exception as ex:
             raise NotificationError(ex)
