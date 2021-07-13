@@ -301,6 +301,10 @@ zipp==3.4.0
 
 # via nets-additions
 requests-futures==1.0.0
+flask-oidc==1.4.0
+flask_openid==1.2.5
+psycopg2==2.8.5
+envsubst==0.1.5
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
