@@ -192,6 +192,7 @@ class ExploreResultsButton extends React.PureComponent {
 
   renderInvalidColumnMessage() {
     const invalidColumns = this.getInvalidColumns();
+    return null;
     if (invalidColumns.length === 0) {
       return null;
     }
