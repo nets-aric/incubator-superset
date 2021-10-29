@@ -63,22 +63,35 @@ class S3Notification(BaseNotification):  # pylint: disable=too-few-public-method
         if self._content.screenshot:
             img_data = self._content.screenshot
             name = str(datetime.now()) + self._content.name + ".png"
-            name.replace(" ", "-")
+            name = name.replace(" ", "-")
             return S3Content(filename=name, data=img_data)
         if self._content.csv:
             csv_data = self._content.csv
             name = str(datetime.now()) + "-" + self._content.name + ".csv"
-            name.replace(" ", "-")
+            name = name.replace(" ", "-")
             return S3Content(filename=name, data=csv_data)
 
-    def _get_bucket(self) -> str:
+    def _get_s3_path(self) -> str:
         return json.loads(self._recipient.recipient_config_json)["target"]
 
     def send(self) -> None:
         content = self._get_content()
-        bucket = self._get_bucket()
+        s3_path = self._get_s3_path()
         try:
-            s3_client.put_object(Body=content.data, Bucket=bucket, Key=content.filename)
+            if not s3_path.endswith('/'):
+                s3_path += '/'
+            if s3_path.startswith('s3://'):
+                clean_s3_path = s3_path.split('s3://',1)[1]
+            else :
+                clean_s3_path = s3_path.split('s3://',1)[0]
+            bucket = clean_s3_path.split('/',1)[0]
+            dir_path = clean_s3_path.split('/',1)[1].rstrip('/')
+            if dir_path:
+                file_path = dir_path + "/" + content.filename
+            else:
+                file_path = content.filename
+            
+            s3_client.put_object(Body=content.data, Bucket=bucket, Key=file_path)
             logger.info("Report sent to s3")
         except Exception as ex:
             raise NotificationError(ex)
