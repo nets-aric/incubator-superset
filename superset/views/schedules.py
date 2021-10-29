@@ -386,7 +386,7 @@ class S3ScheduleView(SupersetModelView, DeleteMixin):  # pylint: disable=too-man
         "user": _("User"),
         "active": _("Active"),
         "crontab": _("Crontab"),
-        "s3_path": _("S3 Path"),
+        "s3_path": _("S3 URI"),
     }
 
     def pre_add(self, item):
@@ -396,13 +396,25 @@ class S3ScheduleView(SupersetModelView, DeleteMixin):  # pylint: disable=too-man
             raise SupersetException("S3 path  is mandatory")
         if not croniter.is_valid(item.crontab):
             raise SupersetException("Invalid crontab format")
-#        if not str(item.s3_path).startswith("s3://"):
-#            raise SupersetException("Path must start with s3://")
         s3 = boto3.resource('s3')
-        bucket = s3.Bucket(item.s3_path)
+        if item.s3_path.startswith('s3://'):
+          clean_s3_path = item.s3_path.split('s3://',1)[1]
+        else :
+          clean_s3_path = item.s3_path.split('s3://',1)[0]
+          bucket = s3.Bucket(clean_s3_path.split('/',1)[0])
+          raise SupersetException("Invalid bucket format " + str(item.s3_path) + ". Accepted format s3://<bucket>/<prefix>")
+        bucket = s3.Bucket(clean_s3_path.split('/',1)[0])
         if not bucket.creation_date:
-            raise SupersetException("Invalid Bucket")
+            raise SupersetException("Invalid Bucket, " + str(bucket) + " cannot be found")
         super(S3ScheduleView, self).pre_add(item)
+
+    def post_add(self, item):
+        # Notify the user that schedule changes will be activate only in the
+        # next hour
+        if item.active:
+            flash("Schedule changes will get applied in one hour", "warning")
+
 
     def pre_update(self, item):
         self.pre_add(item)
+        self.post_add(item)

@@ -125,4 +125,4 @@ class S3ExportSchedule(Model, AuditMixinNullable, ImportExportMixin):
 
     slice_id = Column(Integer, ForeignKey("slices.id"))
     slice = relationship("Slice", backref="s3_schedules", foreign_keys=[slice_id])
-    s3_path = Column(String(50))
+    s3_path = Column(String, default="s3://<bucket>/<prefix>")

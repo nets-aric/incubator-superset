@@ -156,8 +156,14 @@ def _deliver_email(  # pylint: disable=too-many-arguments
 def _export_s3(s3_path, slice_name, email):
     s3 = boto3.resource('s3')
     timestr = time.strftime("%Y%m%d%H%M%S")
-    file_path = "s3_export/" + timestr + "_" + slice_name.replace(" ", "_") + ".csv"
-    object = s3.Object(s3_path, file_path)
+    if s3_path.startswith('s3://'):
+      clean_s3_path = s3_path.split('s3://',1)[1]
+    else :
+      clean_s3_path = s3_path.split('s3://',1)[0]
+    bucket = clean_s3_path.split('/',1)[0]
+    dir_path = clean_s3_path.split('/',1)[1].rstrip('/')
+    file_path = dir_path + "/" + timestr + "_" + slice_name.replace(" ", "_") + ".csv"
+    object = s3.Object(bucket, file_path)
     object.put(Body=email)
 
 def _generate_report_content(
