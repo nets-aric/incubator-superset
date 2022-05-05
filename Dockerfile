@@ -54,12 +54,14 @@ RUN apk -U upgrade \
 
 ARG NPM_BUILD_CMD="build"
 ENV BUILD_CMD=${NPM_BUILD_CMD}
+ARG SUPERSET_UI_AUTH_TOKEN
 
 # NPM ci first, as to NOT invalidate previous steps except for when package.json changes
 RUN mkdir -p /app/superset-frontend
 RUN mkdir -p /app/superset/assets
 COPY ./docker/frontend-mem-nag.sh /
 COPY ./superset-frontend/package* /app/superset-frontend/
+COPY ./superset-frontend/.npmrc /app/superset-frontend/
 RUN /frontend-mem-nag.sh \
         && cd /app/superset-frontend \
         && npm ci
