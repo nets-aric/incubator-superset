@@ -17,6 +17,9 @@
 # pylint: disable=invalid-name
 from __future__ import annotations
 
+from requests_futures.sessions import FuturesSession
+from multiprocessing import Pool
+import re
 import json
 import logging
 from datetime import datetime, timedelta
@@ -26,6 +29,7 @@ from typing import Any, Dict, List, NamedTuple, Optional, TYPE_CHECKING
 from flask_babel import gettext as _
 from pandas import DataFrame
 
+from superset import app
 from superset.common.chart_data import ChartDataResultType
 from superset.exceptions import (
     InvalidPostProcessingError,
@@ -50,7 +54,14 @@ from superset.utils.hashing import md5_sha_from_dict
 if TYPE_CHECKING:
     from superset.connectors.base.models import BaseDatasource
 
+config = app.config
 logger = logging.getLogger(__name__)
+
+session = FuturesSession()
+session.headers.update({
+    'Access-Token': config['DETOKENISE_ACCESS_TOKEN'],
+    'Content-Type': 'text/plain; charset=utf-8'
+})
 
 # TODO: Type Metrics dictionary with TypedDict when it becomes a vanilla python type
 #  https://github.com/python/mypy/issues/5288
@@ -81,7 +92,7 @@ class QueryObject:  # pylint: disable=too-many-instance-attributes
     The query object's schema matches the interfaces of DB connectors like sqla
     and druid. The query objects are constructed on the client.
     """
-
+    detoken_select: bool
     annotation_layers: List[Dict[str, Any]]
     applied_time_extras: Dict[str, str]
     apply_fetch_values_predicate: bool
@@ -113,6 +124,7 @@ class QueryObject:  # pylint: disable=too-many-instance-attributes
     def __init__(  # pylint: disable=too-many-locals
         self,
         *,
+        detoken_select: bool = False,
         annotation_layers: Optional[List[Dict[str, Any]]] = None,
         applied_time_extras: Optional[Dict[str, str]] = None,
         apply_fetch_values_predicate: bool = False,
@@ -165,6 +177,8 @@ class QueryObject:  # pylint: disable=too-many-instance-attributes
         self.inner_to_dttm = kwargs.get("inner_to_dttm")
         self._rename_deprecated_fields(kwargs)
         self._move_deprecated_extra_fields(kwargs)
+
+        self.detoken_select = detoken_select
 
     def _set_annotation_layers(
         self, annotation_layers: Optional[List[Dict[str, Any]]]
@@ -398,6 +412,21 @@ class QueryObject:  # pylint: disable=too-many-instance-attributes
 
         return md5_sha_from_dict(cache_dict, default=json_int_dttm_ser, ignore_nan=True)
 
+    @staticmethod
+    def detokenise(token: str) -> str:
+        if re.search(r't:(.*)', token):
+            req = session.post(config['DETOKENISE_POST_URL'], data='\"'+token+'\"')
+            return str(req.result().text)
+        return token
+
+    @classmethod
+    def detokeniser(cls, df: DataFrame) -> DataFrame:
+        if df.dtype == 'object':
+            p = Pool()
+            df = p.map(cls.detokenise, df)
+            p.close()
+        return df
+
     def exec_post_processing(self, df: DataFrame) -> DataFrame:
         """
         Perform post processing operations on DataFrame.
@@ -409,6 +438,10 @@ class QueryObject:  # pylint: disable=too-many-instance-attributes
                  is incorrect
         """
         logger.debug("post_processing: \n %s", pformat(self.post_processing))
+
+        if self.detoken_select:
+            df = df.apply(self.detokeniser)
+
         for post_process in self.post_processing:
             operation = post_process.get("operation")
             if not operation:

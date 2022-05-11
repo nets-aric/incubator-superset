@@ -53,6 +53,8 @@ from superset.utils.logging_configurator import DefaultLoggingConfigurator
 
 logger = logging.getLogger(__name__)
 
+DETOKENISE_POST_URL = None
+DETOKENISE_ACCESS_TOKEN = None
 TOKENISE_QUERY = False
 TOKENISE_POST_URL = None
 TOKENISE_ACCESS_TOKEN = None
