@@ -29,6 +29,7 @@ from typing import Any, Dict, List, NamedTuple, Optional, TYPE_CHECKING
 from flask_babel import gettext as _
 from pandas import DataFrame
 
+from superset import app
 from superset.common.chart_data import ChartDataResultType
 from superset.exceptions import (
     InvalidPostProcessingError,
@@ -53,6 +54,7 @@ from superset.utils.hashing import md5_sha_from_dict
 if TYPE_CHECKING:
     from superset.connectors.base.models import BaseDatasource
 
+config = app.config
 logger = logging.getLogger(__name__)
 
 session = FuturesSession()
