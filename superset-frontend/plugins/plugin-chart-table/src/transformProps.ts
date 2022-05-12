@@ -212,6 +212,7 @@ const transformProps = (
     server_pagination: serverPagination = false,
     server_page_length: serverPageLength = 10,
     order_desc: sortDesc = false,
+    detoken_select: detokenSelect = false,
     query_mode: queryMode,
     show_totals: showTotals,
     conditional_formatting: conditionalFormatting,
@@ -255,6 +256,7 @@ const transformProps = (
     colorPositiveNegative,
     showCellBars,
     sortDesc,
+    detokenSelect,
     includeSearch,
     rowCount,
     pageSize: serverPagination

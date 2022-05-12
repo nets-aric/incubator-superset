@@ -61,6 +61,7 @@ class ReportScheduleValidatorType(str, enum.Enum):
 class ReportRecipientType(str, enum.Enum):
     EMAIL = "Email"
     SLACK = "Slack"
+    S3 = "S3"
 
 
 class ReportState(str, enum.Enum):
@@ -185,7 +186,8 @@ class ReportRecipients(Model, AuditMixinNullable):
         backref=backref("recipients", cascade="all,delete,delete-orphan"),
         foreign_keys=[report_schedule_id],
     )
-
+    subject = Column(String(50), nullable=False)
+    body = Column(String(500), nullable=True)
 
 class ReportExecutionLog(Model):  # pylint: disable=too-few-public-methods
 

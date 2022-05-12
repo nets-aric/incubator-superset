@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import React, { CSSProperties, forwardRef } from 'react';
+import React, { CSSProperties, forwardRef, useState } from 'react';
+import { Popover } from 'antd';
 
 export interface PaginationProps {
   pageCount: number; // number of pages
@@ -87,6 +88,7 @@ export default React.memo(
       currentPage,
       maxPageItemCount,
     );
+    const [show, setShow] = useState(false)
     return (
       <div ref={ref} className="dt-pagination" style={style}>
         <ul className="pagination pagination-sm">
@@ -103,6 +105,7 @@ export default React.memo(
                   onClick={e => {
                     e.preventDefault();
                     onPageChange(item);
+                    setShow(false);
                   }}
                 >
                   {item + 1}
@@ -110,10 +113,35 @@ export default React.memo(
               </li>
             ) : (
               <li key={item} className="dt-pagination-ellipsis">
-                <span>…</span>
+                <a
+                  role="button"
+                  onClick={e => {
+                    setShow(!show);
+                  }}
+                  >…</a>
               </li>
             ),
           )}
+          <Popover content={
+            <span>
+              Page: {' '}
+              <input type='text' defaultValue={currentPage} inputMode="numeric" pattern="[0-9]*"
+              onKeyDown={e => {
+                if (e.key === "Enter" && !(isNaN(Number(e.currentTarget.value)))){
+                  setShow(false);
+                  e.preventDefault();
+                  if (Number(e.currentTarget.value) > pageCount){
+                    onPageChange(pageCount-1);
+                  }
+                  else if(Number(e.currentTarget.value) < 1){
+                    onPageChange(0)
+                  }
+                  else{
+                    onPageChange(Number(e.currentTarget.value)-1);
+                  }}}}/>
+            </span>}
+            visible={show}>
+          </Popover>
         </ul>
       </div>
     );

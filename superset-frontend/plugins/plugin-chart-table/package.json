@@ -1,7 +1,7 @@
 {
-  "name": "@superset-ui/plugin-chart-table",
+  "name": "@nets-aric/plugin-chart-table",
   "version": "0.18.25",
-  "description": "Superset Chart - Table",
+  "description": "Nets Superset Chart - Table",
   "main": "lib/index.js",
   "module": "esm/index.js",
   "sideEffects": false,
@@ -11,18 +11,20 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/apache-superset/superset-ui.git"
+    "url": "git+https://github.com/nets-aric/incubator-superset.git"
   },
   "keywords": [
+    "nets",
     "superset"
   ],
-  "author": "Superset",
+  "author": "Nets-ARIC",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/apache-superset/superset-ui/issues"
+    "url": "https://github.com/nets-aric/incubator-superset/issues"
   },
-  "homepage": "https://github.com/apache-superset/superset-ui#readme",
+  "homepage": "https://github.com/nets-aric/incubator-superset#readme",
   "publishConfig": {
+    "@nets-aric:registry": "https://npm.pkg.github.com",
     "access": "public"
   },
   "dependencies": {
