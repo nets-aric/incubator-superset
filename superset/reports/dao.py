@@ -171,6 +171,8 @@ class ReportScheduleDAO(BaseDAO):
                         recipient_config_json=json.dumps(
                             recipient["recipient_config_json"]
                         ),
+                        subject=recipient["subject"],
+                        body=recipient["body"],
                     )
                 )
             db.session.add(model)
@@ -202,6 +204,8 @@ class ReportScheduleDAO(BaseDAO):
                         recipient_config_json=json.dumps(
                             recipient["recipient_config_json"]
                         ),
+                        subject=recipient["subject"],
+                        body=recipient["body"],
                         report_schedule=model,
                     )
                     for recipient in recipients
