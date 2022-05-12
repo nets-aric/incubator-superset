@@ -299,5 +299,10 @@ yarl==1.6.3
 zipp==3.4.1
     # via -r requirements/base.in
 
+flask-oidc==1.4.0
+flask_openid==1.2.5
+psycopg2==2.8.5
+envsubst==0.1.5
+
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
