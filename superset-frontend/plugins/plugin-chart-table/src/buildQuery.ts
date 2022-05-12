@@ -66,7 +66,10 @@ const buildQuery: BuildQuery<TableChartFormData> = (
     let { metrics, orderby = [] } = baseQueryObject;
     let postProcessing: PostProcessingRule[] = [];
 
-    const detoken_select = (formDataCopy.detoken_select === undefined) ? false : formDataCopy.detoken_select;
+    const detoken_select =
+      formDataCopy.detoken_select === undefined
+        ? false
+        : formDataCopy.detoken_select;
 
     if (queryMode === QueryMode.aggregate) {
       metrics = metrics || [];

@@ -302,7 +302,9 @@ const config: ControlPanelConfig = {
             config: {
               type: 'CheckboxControl',
               label: t('Detokenisation'),
-              description: t('Enable detokenisation of results (experimental feature)'),
+              description: t(
+                'Enable detokenisation of results (experimental feature)',
+              ),
               default: false,
             },
           },
