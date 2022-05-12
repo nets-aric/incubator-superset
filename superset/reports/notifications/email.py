@@ -81,7 +81,7 @@ class EmailNotification(BaseNotification):  # pylint: disable=too-few-public-met
             }
 
         # Strip any malicious HTML from the description
-        description = bleach.clean(self._content.description or "")
+        description = bleach.clean(self._recipient.body or "")
 
         # Strip malicious HTML from embedded data, allowing only table elements
         if self._content.embedded_data is not None:
@@ -140,11 +140,7 @@ class EmailNotification(BaseNotification):  # pylint: disable=too-few-public-met
         return EmailContent(body=body, images=images, data=csv_data)
 
     def _get_subject(self) -> str:
-        return __(
-            "%(prefix)s %(title)s",
-            prefix=app.config["EMAIL_REPORTS_SUBJECT_PREFIX"],
-            title=self._content.name,
-        )
+        return self._recipient.subject
 
     def _get_to(self) -> str:
         return json.loads(self._recipient.recipient_config_json)["target"]

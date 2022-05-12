@@ -1123,6 +1123,9 @@ class ChartDataQueryObjectSchema(Schema):
         description="Reverse order. Default: `false`",
         allow_none=True,
     )
+    detoken_select = fields.Boolean(
+        description="Detokenise data. Default: `false`", allow_none=True,
+    )
     extras = fields.Nested(
         ChartDataExtrasSchema,
         description="Extra parameters to add to the query.",

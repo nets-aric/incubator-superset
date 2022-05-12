@@ -299,6 +299,8 @@ yarl==1.6.3
 zipp==3.4.1
     # via -r requirements/base.in
 
+# via nets-additions
+requests-futures==1.0.0
 flask-oidc==1.4.0
 flask_openid==1.2.5
 psycopg2==2.8.5
