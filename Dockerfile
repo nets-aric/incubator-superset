@@ -19,7 +19,7 @@
 # PY stage that simply does a pip install on our requirements
 ######################################################################
 ARG PY_VER=3.8.12
-FROM python:${PY_VER} AS superset-py
+FROM python:${PY_VER}-slim AS superset-py
 
 RUN mkdir /app \
         && apt-get update -y \
@@ -45,10 +45,12 @@ RUN cd /app \
 ######################################################################
 # Node stage to deal with static asset construction
 ######################################################################
-FROM node:16 AS superset-node
+FROM node:16-alpine AS superset-node
 
 ARG NPM_VER=7
-RUN npm install -g npm@${NPM_VER}
+RUN apk -U upgrade \
+    && apk add bash \
+    && npm install -g npm@${NPM_VER}
 
 ARG NPM_BUILD_CMD="build"
 ENV BUILD_CMD=${NPM_BUILD_CMD}
@@ -72,7 +74,7 @@ RUN cd /app/superset-frontend \
 # Final lean image...
 ######################################################################
 ARG PY_VER=3.8.12
-FROM python:${PY_VER} AS lean
+FROM python:${PY_VER}-slim AS lean
 
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
@@ -133,7 +135,7 @@ COPY ./requirements/*.txt ./docker/requirements-*.txt/ /app/requirements/
 USER root
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends libnss3 libdbus-glib-1-2 libgtk-3-0 libx11-xcb1
+    && apt-get install -y --no-install-recommends libnss3 libdbus-glib-1-2 libgtk-3-0 libx11-xcb1 wget
 
 # Install GeckoDriver WebDriver
 RUN wget https://github.com/mozilla/geckodriver/releases/download/${GECKODRIVER_VERSION}/geckodriver-${GECKODRIVER_VERSION}-linux64.tar.gz -O /tmp/geckodriver.tar.gz && \
