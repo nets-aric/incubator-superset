@@ -53,6 +53,9 @@ from superset.utils.logging_configurator import DefaultLoggingConfigurator
 
 logger = logging.getLogger(__name__)
 
+DETOKENISE_POST_URL = None
+DETOKENISE_ACCESS_TOKEN = None
+
 if TYPE_CHECKING:
     from flask_appbuilder.security.sqla import models
 
