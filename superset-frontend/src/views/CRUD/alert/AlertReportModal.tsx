@@ -393,6 +393,8 @@ type NotificationSetting = {
   method?: NotificationMethodOption;
   recipients: string;
   options: NotificationMethodOption[];
+  subject: string;
+  body: string;
 };
 
 const AlertReportModal: FunctionComponent<AlertReportModalProps> = ({
@@ -443,6 +445,8 @@ const AlertReportModal: FunctionComponent<AlertReportModalProps> = ({
     settings.push({
       recipients: '',
       options: allowedNotificationMethods,
+      subject: '',
+      body: '',
     });
 
     setNotificationSettings(settings);
@@ -504,6 +508,8 @@ const AlertReportModal: FunctionComponent<AlertReportModalProps> = ({
           recipient_config_json: {
             target: setting.recipients,
           },
+          subject: setting.subject,
+          body: setting.body,
           type: setting.method,
         });
       }
@@ -951,6 +957,8 @@ const AlertReportModal: FunctionComponent<AlertReportModalProps> = ({
           // @ts-ignore: Type not assignable
           recipients: config.target || setting.recipient_config_json,
           options: allowedNotificationMethods,
+          subject: setting.subject,
+          body: setting.body,
         };
       });
 
