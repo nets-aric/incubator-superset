@@ -298,6 +298,19 @@ const config: ControlPanelConfig = {
           : [],
         [
           {
+            name: 'detoken_select',
+            config: {
+              type: 'CheckboxControl',
+              label: t('Detokenisation'),
+              description: t(
+                'Enable detokenisation of results (experimental feature)',
+              ),
+              default: false,
+            },
+          },
+        ],
+        [
+          {
             name: 'row_limit',
             override: {
               visibility: ({ controls }: ControlPanelsContainerProps) =>
