@@ -60,11 +60,11 @@ class S3Notification(BaseNotification):  # pylint: disable=too-few-public-method
     def _get_content(self) -> S3Content:
         # Get the domain from the 'From' address ..
         # and make a message id without the < > in the end
-        if self._content.screenshot:
-            img_data = self._content.screenshot
+        if self._content.screenshots:
+            img_data = self._content.screenshots
             name = str(datetime.now()) + self._content.name + ".png"
             name = name.replace(" ", "-")
-            return S3Content(filename=name, data=img_data)
+            return S3Content(filename=name, data=b''.join(img_data))
         if self._content.csv:
             csv_data = self._content.csv
             name = str(datetime.now()) + "-" + self._content.name + ".csv"
@@ -81,11 +81,11 @@ class S3Notification(BaseNotification):  # pylint: disable=too-few-public-method
             if not s3_path.endswith('/'):
                 s3_path += '/'
             if s3_path.startswith('s3://'):
-                clean_s3_path = s3_path.split('s3://',1)[1]
+                clean_s3_path = s3_path.split('s3://', 1)[1]
             else :
-                clean_s3_path = s3_path.split('s3://',1)[0]
-            bucket = clean_s3_path.split('/',1)[0]
-            dir_path = clean_s3_path.split('/',1)[1].rstrip('/')
+                clean_s3_path = s3_path.split('s3://', 1)[0]
+            bucket = clean_s3_path.split('/', 1)[0]
+            dir_path = clean_s3_path.split('/', 1)[1].rstrip('/')
             if dir_path:
                 file_path = dir_path + "/" + content.filename
             else:
