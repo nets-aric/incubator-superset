@@ -17,14 +17,14 @@
 """empty message
 
 Revision ID: c0aa4043d486
-Revises: f1410ed7ec95
+Revises: 58df9d617f14
 Create Date: 2021-06-16 15:46:54.230435
 
 """
 
 # revision identifiers, used by Alembic.
 revision = 'c0aa4043d486'
-down_revision = 'f1410ed7ec95'
+down_revision = '58df9d617f14'
 
 from alembic import op
 import sqlalchemy as sa
