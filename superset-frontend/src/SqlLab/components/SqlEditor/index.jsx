@@ -177,6 +177,10 @@ class SqlEditor extends React.PureComponent {
         LocalStorageKeys.sqllab__is_autocomplete_enabled,
         true,
       ),
+      detokenisationEnabled: getItem(
+        LocalStorageKeys.sqllab__is_detokenisation_enabled,
+        false,
+      ),
       showCreateAsModal: false,
       createAs: '',
     };
@@ -396,6 +400,18 @@ class SqlEditor extends React.PureComponent {
     });
   };
 
+  handleToggleDetokenisationEnabled = () => {
+    this.setState(prevState => {
+      setItem(
+        LocalStorageKeys.sqllab__is_detokenisation_enabled,
+        !prevState.detokenisationEnabled,
+      );
+      return {
+        detokenisationEnabled: !prevState.detokenisationEnabled,
+      };
+    });
+  };
+
   handleWindowResize() {
     this.setState({ height: this.getSqlEditorHeight() });
   }
@@ -458,6 +474,7 @@ class SqlEditor extends React.PureComponent {
       ctas,
       ctas_method,
       updateTabState: !qe.selectedText,
+      detokenisation: this.state.detokenisationEnabled,
     };
     this.props.runQuery(query);
     this.props.setActiveSouthPaneTab('Results');
@@ -510,6 +527,7 @@ class SqlEditor extends React.PureComponent {
           <AceEditorWrapper
             actions={this.props.actions}
             autocomplete={this.state.autocompleteEnabled}
+            detokenisation={this.state.detokenisationEnabled}
             onBlur={this.setQueryEditorSql}
             onChange={this.onSqlChanged}
             queryEditor={this.props.queryEditor}
@@ -695,6 +713,14 @@ class SqlEditor extends React.PureComponent {
                 </a>
               </AntdDropdown>
             </LimitSelectStyled>
+          </span>
+          <span>
+            <span>Detokenisation:</span>{' '}
+            <AntdSwitch
+              checked={this.state.detokenisationEnabled}
+              onChange={this.handleToggleDetokenisationEnabled}
+              name="detokenisation-switch"
+            />
           </span>
           {this.props.latestQuery && (
             <Timer

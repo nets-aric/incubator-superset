@@ -17,9 +17,8 @@
 # pylint: disable=invalid-name
 from __future__ import annotations
 
-from requests_futures.sessions import FuturesSession
-from multiprocessing import Pool
-import re
+import asyncio
+
 import json
 import logging
 from datetime import datetime, timedelta
@@ -30,6 +29,7 @@ from flask_babel import gettext as _
 from pandas import DataFrame
 
 from superset import app
+from superset.aric_detokeniser import detokenise_post_process
 from superset.common.chart_data import ChartDataResultType
 from superset.exceptions import (
     InvalidPostProcessingError,
@@ -56,12 +56,6 @@ if TYPE_CHECKING:
 
 config = app.config
 logger = logging.getLogger(__name__)
-
-session = FuturesSession()
-session.headers.update({
-    'Access-Token': config['DETOKENISE_ACCESS_TOKEN'],
-    'Content-Type': 'text/plain; charset=utf-8'
-})
 
 # TODO: Type Metrics dictionary with TypedDict when it becomes a vanilla python type
 #  https://github.com/python/mypy/issues/5288
@@ -412,21 +406,6 @@ class QueryObject:  # pylint: disable=too-many-instance-attributes
 
         return md5_sha_from_dict(cache_dict, default=json_int_dttm_ser, ignore_nan=True)
 
-    @staticmethod
-    def detokenise(token: str) -> str:
-        if re.search(r't:(.*)', token):
-            req = session.post(config['DETOKENISE_POST_URL'], data='\"'+token+'\"')
-            return str(req.result().text)
-        return token
-
-    @classmethod
-    def detokeniser(cls, df: DataFrame) -> DataFrame:
-        if df.dtype == 'object':
-            p = Pool()
-            df = p.map(cls.detokenise, df)
-            p.close()
-        return df
-
     def exec_post_processing(self, df: DataFrame) -> DataFrame:
         """
         Perform post processing operations on DataFrame.
@@ -440,7 +419,7 @@ class QueryObject:  # pylint: disable=too-many-instance-attributes
         logger.debug("post_processing: \n %s", pformat(self.post_processing))
 
         if self.detoken_select:
-            df = df.apply(self.detokeniser)
+            df = asyncio.run(detokenise_post_process(df))
 
         for post_process in self.post_processing:
             operation = post_process.get("operation")

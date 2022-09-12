@@ -2567,7 +2567,10 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
     def sql_json(self) -> FlaskResponse:
         try:
             log_params = {
-                "user_agent": cast(Optional[str], request.headers.get("USER_AGENT"))
+                "user_agent": cast(Optional[str], request.headers.get("USER_AGENT")),
+                "detokenisation": cast(bool, bool(request.headers.get(
+                    "DETOKENISATION"
+                )))
             }
             execution_context = SqlJsonExecutionContext(request.json)
             command = self._create_sql_json_command(execution_context, log_params)
