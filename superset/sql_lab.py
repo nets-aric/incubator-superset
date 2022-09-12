@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import asyncio
 import dataclasses
 import logging
 import uuid
@@ -32,6 +33,7 @@ from flask_babel import gettext as __
 from sqlalchemy.orm import Session
 
 from superset import app, results_backend, results_backend_use_msgpack, security_manager
+from superset.aric_detokeniser import detokenise_post_process
 from superset.common.db_query_status import QueryStatus
 from superset.dataframe import df_to_records
 from superset.db_engine_specs import BaseEngineSpec
@@ -315,6 +317,7 @@ def _serialize_and_expand_data(
     db_engine_spec: BaseEngineSpec,
     use_msgpack: Optional[bool] = False,
     expand_data: bool = False,
+    detokenisation: Optional[bool] = False,
 ) -> Tuple[Union[bytes, str], List[Any], List[Any], List[Any]]:
     selected_columns = result_set.columns
     all_columns: List[Any]
@@ -324,6 +327,10 @@ def _serialize_and_expand_data(
         with stats_timing(
             "sqllab.query.results_backend_pa_serialization", stats_logger
         ):
+            if detokenisation:
+                result_set.table = pa.Table.from_pandas(
+                    asyncio.run(detokenise_post_process(result_set.to_pandas_df()))
+                )
             data = (
                 pa.default_serialization_context()
                 .serialize(result_set.pa_table)
@@ -335,6 +342,8 @@ def _serialize_and_expand_data(
         all_columns, expanded_columns = (selected_columns, [])
     else:
         df = result_set.to_pandas_df()
+        if detokenisation:
+            df = asyncio.run(detokenise_post_process(df))
         data = df_to_records(df) or []
 
         if expand_data:
@@ -505,10 +514,10 @@ def execute_sql_statements(  # pylint: disable=too-many-arguments, too-many-loca
             latest_partition=False,
         )
     query.end_time = now_as_float()
-
+    detokenisation = log_params.get('detokenisation')
     use_arrow_data = store_results and cast(bool, results_backend_use_msgpack)
     data, selected_columns, all_columns, expanded_columns = _serialize_and_expand_data(
-        result_set, db_engine_spec, use_arrow_data, expand_data
+        result_set, db_engine_spec, use_arrow_data, expand_data, detokenisation
     )
 
     # TODO: data should be saved separately from metadata (likely in Parquet)
@@ -560,7 +569,7 @@ def execute_sql_statements(  # pylint: disable=too-many-arguments, too-many-loca
                 all_columns,
                 expanded_columns,
             ) = _serialize_and_expand_data(
-                result_set, db_engine_spec, False, expand_data
+                result_set, db_engine_spec, False, expand_data, detokenisation
             )
             payload.update(
                 {

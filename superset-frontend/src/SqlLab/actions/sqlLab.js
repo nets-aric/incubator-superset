@@ -336,7 +336,10 @@ export function runQuery(query) {
     return SupersetClient.post({
       endpoint: `/superset/sql_json/${search}`,
       body: JSON.stringify(postPayload),
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(query.detokenisation && { DETOKENISATION: 'True' }),
+      },
       parseMethod: 'text',
     })
       .then(({ text = '{}' }) => {
