@@ -40,7 +40,7 @@ session.headers.update({
 
 
 def detokenise_json(df: DataFrame) -> DataFrame:
-    if df.dtype == 'object' and any(val.startswith('t:') for val in df):
+    if df.dtype == 'object' and any(val.startswith('t:') if val is not None else False for val in df):
         data = json.dumps({"id": df.to_list()})
         req = session.post(config['DETOKENISE_POST_URL'],
                            data=data)
