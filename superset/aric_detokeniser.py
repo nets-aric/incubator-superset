@@ -44,7 +44,7 @@ async def detokenise_post_process(df: DataFrame) -> DataFrame:
                        isinstance(value, str) and value.startswith('t:')}
 
     detokenised_values = session.post(config['DETOKENISE_POST_URL'],
-                           data=json.dumps({"id": list(filtered_tokens)})).result()
+                           data=json.dumps({"id": list(filtered_tokens)})).result().json()
 
     result_dict = dict(zip(filtered_tokens, detokenised_values))
     df.replace(result_dict, inplace=True)
