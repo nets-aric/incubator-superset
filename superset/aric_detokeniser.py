@@ -40,11 +40,16 @@ session.headers.update({
 
 
 async def detokenise_post_process(df: DataFrame) -> DataFrame:
+    df_copy = df.copy()
+
+    # Convert all values in the copied DataFrame to strings
+    df_copy = df_copy.astype(str)
+
     filtered_tokens = set()
 
-    for col_name in df.columns:
+    for col_name in df_copy.columns:
         filtered_tokens.update(
-            df[col_name].loc[df[col_name].str.startswith('t:', na=False)])
+            df_copy[col_name].loc[df_copy[col_name].str.startswith('t:', na=False)])
 
     detokenised_values = session.post(config['DETOKENISE_POST_URL'],
                            data=json.dumps({"id": list(filtered_tokens)})).result()
@@ -55,3 +60,4 @@ async def detokenise_post_process(df: DataFrame) -> DataFrame:
         df[col_name] = df[col_name].map(lambda x: result_dict.get(x, x))
 
     return df
+
