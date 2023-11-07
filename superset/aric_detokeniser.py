@@ -23,6 +23,7 @@ import functools
 from asyncio import events
 
 from requests_futures.sessions import FuturesSession
+import concurrent.futures
 import json
 import logging
 from pandas import DataFrame
