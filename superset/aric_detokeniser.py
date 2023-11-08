@@ -41,34 +41,16 @@ session.headers.update({
 
 
 async def detokenise_post_process(df: DataFrame) -> DataFrame:
-    df_copy = df.copy()
-
-    df_copy = df_copy.astype(str)
-
-    def update_filtered_tokens(col_name):
-        return set(
-            df_copy[col_name].loc[df_copy[col_name].str.startswith('t:', na=False)])
-
-    num_threads = 4
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-        results = list(executor.map(update_filtered_tokens, df_copy.columns))
-
-    filtered_tokens = set().union(*results)
+    filtered_tokens = {value for col_name in df.columns for value in df[col_name] if
+                       isinstance(value, str) and value.startswith('t:')}
 
     detokenised_values = session.post(config['DETOKENISE_POST_URL'],
-                           data=json.dumps({"id": list(filtered_tokens)})).result()
+                           data=json.dumps({"id": list(filtered_tokens)})).result().json()
 
     result_dict = dict(zip(filtered_tokens, detokenised_values))
 
-    def map_column(col_name):
-        return df[col_name].map(lambda x: result_dict.get(x, x))
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-        df_mapped_columns = list(executor.map(map_column, df.columns))
-
-    for i, col_name in enumerate(df.columns):
-        df[col_name] = df_mapped_columns[i]
+    for col_name in df.columns:
+        df[col_name] = df[col_name].map(lambda x: result_dict.get(x, x))
 
     return df
 
